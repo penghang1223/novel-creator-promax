@@ -1,16 +1,26 @@
 """Web dashboard configuration."""
 
+from __future__ import annotations
+
+import sys
 from pathlib import Path
 
-# Project root: NOVEL_CREAT/ (3 levels up from this file)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+if str(_PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_ROOT))
+
+from novel_creation_promax.core.roots import plugin_root, workspace_root  # noqa: E402
+
+# Workspace root: where novel_output/ lives.
+PROJECT_ROOT = workspace_root()
+PLUGIN_ROOT = plugin_root()
 
 # Output directory
 OUTPUT_DIR = PROJECT_ROOT / "novel_output"
 
-# Scripts
-SCRIPTS_DIR = PROJECT_ROOT / "novel_creation_promax" / "scripts"
-MEMORY_SCRIPT = PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
+# Scripts (ship with the plugin, not the workspace)
+SCRIPTS_DIR = PLUGIN_ROOT / "novel_creation_promax" / "scripts"
+MEMORY_SCRIPT = PLUGIN_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
 
 # Supported platforms
 PLATFORMS = ["番茄", "起点", "知乎", "七猫", "飞卢", "晋江"]

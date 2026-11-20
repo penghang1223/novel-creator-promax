@@ -10,6 +10,17 @@ description: 平台格式转换、待发章节同步、草稿上传和明确授�
 1. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/publishing/SKILL.md`
 2. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/MODE_REGISTRY.md` 的 `platform-output` 模式
 
+## 发布器位置
+
+发布器随插件分发，执行时使用绝对路径，不要依赖当前目录：
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish"
+python3 publish.py --book "书名" --count N --draft
+```
+
+章节稿从 `${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}/正文/` 读取或同步。
+
 ## 边界
 
 - 发布前核验 passport、审计状态、字数和用户授权范围。
