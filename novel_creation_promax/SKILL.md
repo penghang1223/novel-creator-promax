@@ -16,6 +16,8 @@ description: |
 
 | 请求范围 | 负责入口 | 交接产物 | 不负责 |
 |---|---|---|---|
+| 平台热门方向、赛道趋势、市场调研 | `MODE_REGISTRY.md` 模式 14 | 调研报告 | 虚构数据、直接写正文 |
+| 创意生成、脑洞、选题 | `MODE_REGISTRY.md` 模式 15 | 创意卡、五维评分 | 直接立项、写正文 |
 | 新书立项、设定、大纲、分卷或细纲 | [`project-planning/SKILL.md`](project-planning/SKILL.md) | 创意/设定/结构/细纲、bootstrap gate | 正文写作 |
 | 写章、续写、短篇、润色 | [`references/orchestrator.md`](references/orchestrator.md) Stage 5 + `write_pipeline.py` | 正文、摘要、passport、commit | 将步骤拆为更多 skill |
 | 记忆初始化、唤醒、回填、阶段体检 | [`novel-memory-pro/SKILL.md`](novel-memory-pro/SKILL.md) | 记忆包、记忆 JSON、review pack | 正文改写 |

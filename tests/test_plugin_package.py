@@ -25,6 +25,7 @@ class ManifestTest(unittest.TestCase):
 
         self.assertEqual(plugin["name"], "novel-creator-pro")
         self.assertTrue(plugin.get("version"))
+        self.assertEqual(plugin["version"], (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip())
         self.assertEqual(marketplace["plugins"][0]["name"], plugin["name"])
         self.assertEqual(marketplace["plugins"][0]["source"], "./")
 
@@ -50,6 +51,25 @@ class ComponentTest(unittest.TestCase):
             text = command.read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---"), command)
             self.assertIn("description:", text.split("---", 2)[1], command)
+
+    def test_market_and_idea_assets_exist(self):
+        for relative in (
+            "skills/novel-market-research/SKILL.md",
+            "skills/novel-idea/SKILL.md",
+            "commands/research.md",
+            "commands/idea.md",
+            "novel_creation_promax/references/templates/market_research_report.md",
+            "novel_creation_promax/references/templates/idea_card.md",
+            "tools/idea_score.py",
+        ):
+            self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+
+        registry = (PROJECT_ROOT / "novel_creation_promax" / "MODE_REGISTRY.md").read_text(encoding="utf-8")
+        self.assertIn("| 14 | market-research |", registry)
+        self.assertIn("| 15 | idea-generation |", registry)
+
+        idea_skill = (PROJECT_ROOT / "skills" / "novel-idea" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("没有维度低于 8", idea_skill)
 
     def test_hooks_reference_existing_files(self):
         hooks = load_json(PROJECT_ROOT / "hooks" / "hooks.json")["hooks"]

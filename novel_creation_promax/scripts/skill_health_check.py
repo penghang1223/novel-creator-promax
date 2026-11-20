@@ -106,7 +106,7 @@ def extract_markdown_refs(text: str) -> list[str]:
         if value.startswith(("python ", "json", "text", "bash")):
             continue
         if (
-            value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "scripts/", "novel-memory-pro/", "review-skill/", "knowledge_base/", "AGENTS.md", "CLAUDE.md"))
+            value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "scripts/", "novel-memory-pro/", "review-skill/", "knowledge_base/", "skills/", "commands/", "hooks/", "tools/", "AGENTS.md", "CLAUDE.md"))
             or re.search(r"\.(md|json|yaml|py)$", value)
         ):
             refs.append(value)
@@ -118,6 +118,8 @@ def resolve_ref(ref: str, source: Path) -> Path:
     if ref.startswith("novel_creation_promax/"):
         return PROJECT_ROOT / ref
     if ref.startswith("knowledge_base/"):
+        return PROJECT_ROOT / ref
+    if ref.startswith(("skills/", "commands/", "hooks/", "tools/")):
         return PROJECT_ROOT / ref
     if ref in {"AGENTS.md", "CLAUDE.md"}:
         return PROJECT_ROOT / ref
@@ -190,10 +192,10 @@ def check_mode_registry(c: Check) -> None:
     if not registry.exists() or not skill.exists():
         return
     mode_ids = parse_mode_ids(registry)
-    expected = set(range(14))
+    expected = set(range(16))
     actual = set(mode_ids)
     if actual == expected:
-        c.ok("MODE_REGISTRY mode_id 连续 0-13")
+        c.ok("MODE_REGISTRY mode_id 连续 0-15")
     else:
         c.fail(f"MODE_REGISTRY mode_id 不连续: {sorted(actual)}")
 
@@ -260,6 +262,8 @@ def check_command_aliases(c: Check) -> None:
         label = "commands"
         expected = [
             "init.md",
+            "research.md",
+            "idea.md",
             "plan.md",
             "outline.md",
             "write.md",

@@ -33,6 +33,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/write_pipeline.py" 
 
 | 请求范围 | 子技能 |
 |---|---|
+| 平台热门方向、榜单题材、市场调研 | `novel-market-research` |
+| 创意生成、脑洞、选题、创意卡 | `novel-idea` |
 | 新书立项、设定、大纲、分卷、细纲 | `novel-project-planning` |
 | 写章、续写、短篇、润色 | `novel-chapter-write` |
 | 记忆初始化、唤醒、回填、体检 | `novel-memory` |

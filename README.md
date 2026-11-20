@@ -22,10 +22,18 @@ claude plugin install novel-creator-pro@novel-creator-pro-market --scope user
 安装后可用：
 
 ```text
-/novel-creator-pro:init     立项
-/novel-creator-pro:write    写章
-/novel-creator-pro:review   审稿
-/novel-creator-pro:doctor   体检
+/novel-creator-pro:research  平台热门方向调研
+/novel-creator-pro:idea      创意生成 + 五维评分
+/novel-creator-pro:init      立项
+/novel-creator-pro:write     写章
+/novel-creator-pro:review    审稿
+/novel-creator-pro:doctor    体检
+```
+
+典型流程：
+
+```text
+调研 → 创意 → 立项 seal → 大纲/细纲 → 写章 → 审稿 → 发布
 ```
 
 ## 环境要求
@@ -49,6 +57,8 @@ ${CLAUDE_PROJECT_DIR}/
 ├── novel_output/{平台}/{书名}/
 │   ├── 正文/ 摘要/ 素材/ 设定/ 细纲/
 │   └── novel_state.json
+├── 素材/调研/                 # 平台热门方向报告
+├── 创意/                      # 创意卡与五维评分
 ├── MEMORY.md
 └── .claude/memory/
 ```
@@ -67,6 +77,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/verify_project_integrity.py" \
 | 技能 | 用途 |
 |---|---|
 | `novel-creator` | 总路由与全局契约 |
+| `novel-market-research` | 平台热门方向、榜单题材、可执行选题 |
+| `novel-idea` | 创意生成、创意卡、五维评分 |
 | `novel-project-planning` | 立项、设定、大纲、分卷、细纲 |
 | `novel-chapter-write` | 写章、续写、润色 |
 | `novel-memory` | 记忆初始化、唤醒、回填、体检 |

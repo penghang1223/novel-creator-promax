@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1
+
+- 统一创意评分规则：总分 ≥75 且无低于 8 的维度才直接推荐立项；有短板时提示先补强。
+- 补充评分工具与技能文案的一致性测试。
+
+## 0.2.0
+
+- 新增 `novel-market-research` 技能与 `/research` 命令：平台热门方向、榜单题材、可执行选题。
+- 新增 `novel-idea` 技能与 `/idea` 命令：创意卡、差异化检查、五维评分。
+- 新增 `tools/idea_score.py` 加权评分工具。
+- 新增市场调研与创意卡模板。
+- `MODE_REGISTRY` 增加模式 14（market-research）和 15（idea-generation）。
+- 知识路由健康检查支持 `skills/`、`commands/`、`hooks/`、`tools/` 路径。
+
 ## 0.1.0
 
 首个插件化版本。

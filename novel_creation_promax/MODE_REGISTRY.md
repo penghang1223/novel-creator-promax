@@ -27,6 +27,8 @@
 | 11 | platform-output | 多平台输出 | 番茄格式、起点格式、发布同步 | `publishing/SKILL.md` | 平台稿、同步结果 | 平台规则检查 |
 | 12 | retrospective | 完结复盘 | 完结复盘、总结教训、升级规则 | `novel_creation_promax/scripts/novel_review_and_upgrade.py` | 复盘报告、规则建议 | 用户确认后入库 |
 | 13 | continuation | 续写他人作品 | 续写这篇、接着这个风格写 | `novel_creation_promax/scripts/style_dna_extractor.py` | 风格DNA、续写正文 | 风格校准 |
+| 14 | market-research | 平台热门方向调研 | 最近什么题材火、平台榜单、市场调研 | `skills/novel-market-research/SKILL.md` | 市场调研报告 | 来源与日期标注 |
+| 15 | idea-generation | 创意生成 | 给我几个选题、脑洞、创意方案 | `skills/novel-idea/SKILL.md` | 创意卡、五维评分 | 五维评分 + 差异化检查 |
 
 ## 模式执行要点
 
@@ -68,3 +70,11 @@ python novel_creation_promax/scripts/write_pipeline.py post --novel-dir "{小说
 ### 12. 完结复盘
 
 自动升级知识库规则前必须先给出建议清单，等待用户确认。确认后才可写入 `knowledge_base/`。
+
+### 14. 平台热门方向调研
+
+先确认平台和时间窗口；平台未定先问，不要默认番茄。基线读 `knowledge_base/60_Platform/`，联网结论必须带 URL 和访问日期；无法联网时标注“仅知识库基线”。报告写入工作区 `素材/调研/`，结论必须落到可执行选题。
+
+### 15. 创意生成
+
+先读同平台调研报告和创意五维评分；没有调研报告时说明基于知识库基线生成。一次最多 10 个，默认 5 个，至少覆盖 3 种核心情绪/爽点。每个创意用 `tools/idea_score.py` 评分，低于 60 不得推荐立项；用户选定后交给立项流程。
