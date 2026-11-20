@@ -1,27 +1,15 @@
 {
   "schema_version": "1.0",
-  "purpose": "知识库目录与生命周期契约，避免把收件、生产、归档、机器数据混在同一层。",
+  "purpose": "知识库目录与生命周期契约（运行精简版）。本库为插件运行时知识，仅保留实际存在的8个域；收件/归档/创意池/原生空间等生命周期域由全量库 novel-creator-pro 承担。",
   "human_index": "00_Index.md",
   "machine_routes": "_ROUTES.json",
   "legacy_index": "_LEGACY_INDEX.md",
   "domains": [
     {
-      "path": "00_Inbox",
-      "kind": "inbox",
-      "lifecycle": "transient",
-      "policy": "新素材临时落点；完成归类后必须移出，保留 README 和待处理清单。"
-    },
-    {
       "path": "10_WorldBuilding",
       "kind": "reference",
       "lifecycle": "active",
       "policy": "世界观、题材与流派知识；被路由引用的文件优先保持稳定路径。"
-    },
-    {
-      "path": "15_Ideas",
-      "kind": "ideas",
-      "lifecycle": "mixed",
-      "policy": "新创意按平台/题材归档；历史大批量资料暂不移动，必须通过 archive 子树隔离。"
     },
     {
       "path": "20_Characters",
@@ -54,56 +42,29 @@
       "policy": "平台规则和商业信息；带年份的资料必须标注有效期。"
     },
     {
-      "path": "70_Corpus",
-      "kind": "corpus",
-      "lifecycle": "active",
-      "policy": "可检索语料和反馈，不直接作为事实源或项目状态。"
-    },
-    {
       "path": "80_Projects",
       "kind": "project",
       "lifecycle": "active",
       "policy": "每本小说独立目录；项目编号漂移通过 _PROJECT_ALIASES.json 解决，不直接改历史目录。",
-      "required_files": ["_config.md", "项目索引.md", "变更记录.md"],
-      "required_dirs": ["伏笔追踪", "角色状态", "剧情节点"]
-    },
-    {
-      "path": "space",
-      "kind": "vault",
-      "lifecycle": "active",
-      "policy": "Ship-Learn-Next 原生创作空间；found 收集内容，crafted 原创内容，_templates 只放模板。"
-    },
-    {
-      "path": "flux",
-      "kind": "raw",
-      "lifecycle": "transient",
-      "policy": "抓取原文和中间数据，默认 Git 忽略，不作为创作路由输入。"
-    },
-    {
-      "path": "90_Archive",
-      "kind": "archive",
-      "lifecycle": "archive",
-      "policy": "历史资料只读保存，不进入默认知识路由；迁移前必须扫描引用。"
+      "required_files": [
+        "_config.md",
+        "项目索引.md",
+        "变更记录.md"
+      ],
+      "required_dirs": [
+        "伏笔追踪",
+        "角色状态",
+        "剧情节点"
+      ]
     }
   ],
-  "archive_subtrees": [
-    {
-      "path": "90_Archive/惊鸿归档",
-      "reason": "历史项目与旧脚本体量较大。",
-      "target": "只读保留，不进入默认路由。"
-    },
-    {
-      "path": "90_Archive/40_Writing_写作技巧",
-      "reason": "旧写作分类已由阶段目录替代。",
-      "target": "新内容只进入 01_开篇技巧 至 07_短篇与模板。"
-    }
-  ],
+  "archive_subtrees": [],
   "project_overrides": [
     {
-      "path": "80_Projects/我替死者接了三年电话",
-      "lifecycle": "knowledge_only",
+      "path": "80_Projects/离婚当天，我成了前夫的甲方",
+      "lifecycle": "active",
       "contract": "minimal",
-      "reason": "只有历史配置，没有对应 novel_output，不创建空项目骨架。"
+      "reason": "当前在建项目，按立项流程逐步补齐项目三件套与子目录。"
     }
   ]
 }

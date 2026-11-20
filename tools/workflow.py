@@ -18,18 +18,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from novel_creation_promax.core.dashboard import write_dashboards  # noqa: E402
 from novel_creation_promax.core.jsonio import load_json, now_iso, save_json  # noqa: E402
 from novel_creation_promax.core.paths import rel  # noqa: E402
 from novel_creation_promax.core.roots import workspace_root  # noqa: E402
+from novel_creation_promax.core.workflow_state import (  # noqa: E402
+    STAGE_LABELS,
+    WORKFLOW_STAGES,
+    collect_books,
+    load_workflow,
+    migrate_legacy,
+    save_workflow,
+)
 
-STAGES = ("research", "idea", "init", "write", "publish")
-LABELS = {
-    "research": "平台调研",
-    "idea": "创意生成",
-    "init": "立项封存",
-    "write": "正文写作",
-    "publish": "发布",
-}
+STAGES = WORKFLOW_STAGES
+LABELS = STAGE_LABELS
 SCHEMA_VERSION = "1.0"
 
 
@@ -69,6 +72,36 @@ def _save_state(workspace: Path, state: dict[str, Any]) -> None:
     state["schema_version"] = SCHEMA_VERSION
     state["updated_at"] = now_iso()
     save_json(workflow_path(workspace), state)
+
+
+def _refresh_dashboards(workspace: Path, novel_dir: Path | None = None) -> None:
+    try:
+        write_dashboards(workspace, novel_dir)
+    except (OSError, ValueError):
+        pass
+
+
+def _selected(workspace: Path, novel_dir_arg: str) -> tuple[Path | None, dict[str, Any], bool]:
+    """Return (novel_dir, state, per_novel).
+
+    ``--novel-dir`` identifies the book for evidence checks. If that book has
+    no per-novel workflow yet but a legacy global workflow exists, keep using
+    the legacy state so existing projects migrate explicitly via ``migrate``.
+    """
+    if not novel_dir_arg:
+        return None, load_state(workspace), False
+    novel_dir = _resolve(workspace, novel_dir_arg).resolve()
+    if not (novel_dir / "摘要" / "workflow.json").is_file():
+        legacy = load_state(workspace)
+        if legacy.get("created_at"):
+            return novel_dir, legacy, False
+    state = load_workflow(novel_dir, workspace=workspace)
+    meta = load_json(novel_dir / "novel_state.json", {})
+    if isinstance(meta, dict):
+        for key in ("platform", "genre"):
+            if not state.get(key) and meta.get(key):
+                state[key] = meta[key]
+    return novel_dir, state, True
 
 
 def _resolve(workspace: Path, value: str | Path) -> Path:
@@ -204,12 +237,41 @@ def _render_status(state: dict[str, Any], missing: list[str]) -> str:
         lines.append("下一步门禁: " + ("通过" if not missing else "未通过"))
         for item in missing:
             lines.append(f"  - {item}")
+    resume = state.get("resume_point", {})
+    if stage == "write" and isinstance(resume, dict) and resume.get("action"):
+        lines.append(f"连载动作: {resume['action']}（下一章）")
     if state.get("overrides"):
         lines.append(f"强制跳阶段记录: {len(state['overrides'])} 条")
     return "\n".join(lines)
 
 
 def _cmd_start(workspace: Path, args: argparse.Namespace) -> int:
+    if args.novel_dir:
+        novel_dir = _resolve(workspace, args.novel_dir).resolve()
+        state = load_workflow(novel_dir, workspace=workspace)
+        if state.get("created_at"):
+            next_stage = _next_stage(state.get("stage", "")) or "publish"
+            print(_render_status(state, check_target(workspace, state, next_stage, novel_dir_arg=str(novel_dir))))
+            return 0
+        state.update(
+            {
+                "book": novel_dir.name,
+                "platform": args.platform or novel_dir.parent.name,
+                "genre": args.genre,
+                "stage": "",
+                "status": "in_progress",
+                "created_at": now_iso(),
+            }
+        )
+        state["history"].append(
+            {"stage": "", "status": "in_progress", "at": now_iso(), "note": "工作流启动"}
+        )
+        save_workflow(novel_dir, state, workspace=workspace)
+        _refresh_dashboards(workspace, novel_dir)
+        print(f"工作流已启动: {novel_dir.name}")
+        print("下一步: 运行 /novel-creator-pro:research 完成平台调研")
+        return 0
+
     state = load_state(workspace)
     if state.get("created_at"):
         next_stage = _next_stage(state.get("stage", "")) or "publish"
@@ -233,8 +295,77 @@ def _cmd_start(workspace: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def _render_books(workspace: Path, books: list[dict[str, Any]], as_json: bool) -> int:
+    rows = []
+    for book in books:
+        state = book["state"]
+        workflow = book["workflow"]
+        stage = str(workflow.get("stage", "") or "")
+        next_stage = _next_stage(stage) if stage else "research"
+        merged = {**state, **workflow}
+        missing = (
+            check_target(workspace, merged, next_stage, novel_dir_arg=str(book["novel_dir"]))
+            if next_stage
+            else []
+        )
+        rows.append(
+            {
+                "title": book["title"],
+                "platform": book["platform"],
+                "novel_dir": rel(book["novel_dir"], workspace),
+                "stage": stage,
+                "next": next_stage,
+                "current_chapter": int(state.get("current_chapter", 0) or 0),
+                "gate": "pass" if not missing else "fail",
+                "missing": missing,
+            }
+        )
+    if as_json:
+        print(json.dumps({"books": rows}, ensure_ascii=False, indent=2))
+        return 0
+    print(f"工作流总览: {len(rows)} 本")
+    print("| 书名 | 平台 | 外层阶段 | 外层下一阶段 | 当前章 | 门禁 |")
+    print("|---|---|---|---|---:|---|")
+    for row in rows:
+        print(
+            f"| {row['title']} | {row['platform']} | {row['stage'] or '未开始'} | "
+            f"{row['next'] or '完成'} | {row['current_chapter']} | "
+            f"{'通过' if row['gate'] == 'pass' else '未通过'} |"
+        )
+    return 0
+
+
 def _cmd_status(workspace: Path, args: argparse.Namespace) -> int:
-    state = load_state(workspace)
+    novel_dir, state, _per_novel = _selected(workspace, args.novel_dir)
+    if novel_dir is not None:
+        next_stage = _next_stage(state.get("stage", "")) if state.get("stage") else "research"
+        missing = (
+            check_target(workspace, state, next_stage, novel_dir_arg=str(novel_dir))
+            if next_stage
+            else []
+        )
+        if args.json:
+            payload = dict(state)
+            payload["next"] = next_stage
+            payload["next_gate"] = "pass" if not missing else "fail"
+            payload["missing"] = missing
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            display = dict(state)
+            meta = load_json(novel_dir / "novel_state.json", {})
+            if isinstance(meta, dict):
+                display["resume_point"] = meta.get("resume_point", {})
+                display["current_chapter"] = meta.get("current_chapter", 0)
+            print(_render_status(display, missing))
+        return 0
+
+    books = collect_books(workspace)
+    has_per_novel = any(
+        (book["novel_dir"] / "摘要" / "workflow.json").is_file() for book in books
+    )
+    if has_per_novel:
+        return _render_books(workspace, books, args.json)
+
     next_stage = _next_stage(state.get("stage", "")) if state.get("stage") else "research"
     missing = check_target(workspace, state, next_stage) if next_stage else []
     if args.json:
@@ -249,11 +380,17 @@ def _cmd_status(workspace: Path, args: argparse.Namespace) -> int:
 
 
 def _cmd_gate(workspace: Path, args: argparse.Namespace) -> int:
-    state = load_state(workspace)
+    novel_dir, state, _per_novel = _selected(workspace, args.novel_dir)
     if not state.get("created_at"):
         print("error: 工作流尚未开始，先运行 start", file=sys.stderr)
         return 2
-    missing = check_target(workspace, state, args.to, evidence=args.evidence, novel_dir_arg=args.novel_dir)
+    missing = check_target(
+        workspace,
+        state,
+        args.to,
+        evidence=args.evidence,
+        novel_dir_arg=str(novel_dir) if novel_dir else args.novel_dir,
+    )
     if missing:
         print(f"门禁未通过: {args.to}", file=sys.stderr)
         for item in missing:
@@ -264,7 +401,7 @@ def _cmd_gate(workspace: Path, args: argparse.Namespace) -> int:
 
 
 def _cmd_advance(workspace: Path, args: argparse.Namespace) -> int:
-    state = load_state(workspace)
+    novel_dir, state, per_novel = _selected(workspace, args.novel_dir)
     if not state.get("created_at"):
         print("error: 工作流尚未开始，先运行 start", file=sys.stderr)
         return 2
@@ -281,7 +418,11 @@ def _cmd_advance(workspace: Path, args: argparse.Namespace) -> int:
         return 1
 
     missing = [] if args.force else check_target(
-        workspace, state, target, evidence=args.evidence, novel_dir_arg=args.novel_dir
+        workspace,
+        state,
+        target,
+        evidence=args.evidence,
+        novel_dir_arg=str(novel_dir) if novel_dir else args.novel_dir,
     )
     if missing:
         print(f"门禁未通过: {target}", file=sys.stderr)
@@ -318,11 +459,28 @@ def _cmd_advance(workspace: Path, args: argparse.Namespace) -> int:
         state["overrides"].append(
             {"target": target, "reason": args.reason.strip(), "at": now_iso()}
         )
-    _save_state(workspace, state)
+    if per_novel:
+        save_workflow(novel_dir, state, workspace=workspace)
+    else:
+        _save_state(workspace, state)
+    _refresh_dashboards(workspace, novel_dir)
     print(f"已推进到: {target}（{LABELS[target]}）")
     next_stage = _next_stage(target)
     if next_stage:
         print(f"下一步: {next_stage}")
+    return 0
+
+
+def _cmd_migrate(workspace: Path, args: argparse.Namespace) -> int:
+    novel_dir = _resolve(workspace, args.novel_dir).resolve()
+    legacy = migrate_legacy(workspace, novel_dir)
+    if not legacy:
+        print(f"没有可迁移的全局 workflow（或 novel_dir 不匹配）: {novel_dir}", file=sys.stderr)
+        return 1
+    _refresh_dashboards(workspace, novel_dir)
+    print("已迁移全局工作流到:")
+    print(f"  {novel_dir / '摘要' / 'workflow.json'}")
+    print(f"  旧文件备份: {workspace / 'novel_output' / '_workspace' / 'workflow.legacy.json'}")
     return 0
 
 
@@ -334,9 +492,11 @@ def main() -> int:
     start = sub.add_parser("start", help="启动工作流")
     start.add_argument("--platform", required=True)
     start.add_argument("--genre", default="")
+    start.add_argument("--novel-dir", default="", help="按书启动独立工作流")
 
     status = sub.add_parser("status", help="查看当前阶段与下一步")
     status.add_argument("--json", action="store_true")
+    status.add_argument("--novel-dir", default="", help="只看某一本书；省略则汇总所有书")
 
     gate = sub.add_parser("gate", help="只校验门禁，不改变状态")
     gate.add_argument("--to", required=True, choices=STAGES)
@@ -351,6 +511,9 @@ def main() -> int:
     advance.add_argument("--force", action="store_true")
     advance.add_argument("--reason", default="")
 
+    migrate = sub.add_parser("migrate", help="把旧的全局 workflow.json 迁移到某本书")
+    migrate.add_argument("--novel-dir", required=True)
+
     args = parser.parse_args()
     workspace = Path(args.workspace).expanduser().resolve() if args.workspace else workspace_root()
 
@@ -358,6 +521,8 @@ def main() -> int:
         return _cmd_start(workspace, args)
     if args.command == "status":
         return _cmd_status(workspace, args)
+    if args.command == "migrate":
+        return _cmd_migrate(workspace, args)
     if args.command == "gate":
         return _cmd_gate(workspace, args)
     if args.command == "advance":

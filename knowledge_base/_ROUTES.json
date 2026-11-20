@@ -107,6 +107,105 @@
       "files": [
         "knowledge_base/40_Writing/04_场景与描写/亲密场景写作指南.md"
       ]
+    },
+    {
+      "key": "engine_project",
+      "name": "15维立项命中率",
+      "trigger": "立项、评估题材能不能写、爆款命中率",
+      "files": [
+        "knowledge_base/50_Quality/评估系统/15维爆款命中率.md"
+      ]
+    },
+    {
+      "key": "engine_opening",
+      "name": "开篇100分卡",
+      "trigger": "chapter <= 5 或开篇验收",
+      "files": [
+        "knowledge_base/40_Writing/01_开篇技巧/开篇100分卡.md"
+      ],
+      "chapter_max": 5
+    },
+    {
+      "key": "engine_quality",
+      "name": "10步量化门禁与16维审稿",
+      "trigger": "写后审计失败、投稿前深度审稿",
+      "files": [
+        "knowledge_base/50_Quality/量化门禁/10步量化门禁.md",
+        "knowledge_base/50_Quality/评估系统/16维深度审稿.md"
+      ],
+      "title_keywords": [
+        "审稿",
+        "修稿",
+        "体检"
+      ]
+    },
+    {
+      "key": "engine_continuity",
+      "name": "六台账与跨章节奏",
+      "trigger": "长篇连载、每5-10章复盘、跨章节奏检查",
+      "files": [
+        "knowledge_base/30_Plot/六台账与20条毒点.md",
+        "knowledge_base/40_Writing/02_节奏与结构/跨章规范与七遍改稿.md",
+        "knowledge_base/40_Writing/06_质量校验/章节节奏R1-R8.md",
+        "knowledge_base/40_Writing/06_质量校验/长篇实战教训.md"
+      ],
+      "chapter_mod": 5
+    },
+    {
+      "key": "engine_deai",
+      "name": "朱雀祛AI味",
+      "trigger": "AI味重、去AI味、过朱雀检测",
+      "files": [
+        "knowledge_base/40_Writing/05_降AI痕迹/朱雀祛AI味五维.md",
+        "knowledge_base/40_Writing/05_降AI痕迹/AI禁用词与句式表.md"
+      ],
+      "title_keywords": [
+        "AI",
+        "去AI",
+        "降AI",
+        "润色"
+      ]
+    },
+    {
+      "key": "engine_ops",
+      "name": "数据诊断与平台换挡",
+      "trigger": "上线后数据差、断流、切书、换平台、书测",
+      "files": [
+        "knowledge_base/60_Platform/数据诊断与救盘.md",
+        "knowledge_base/60_Platform/平台机制与换挡.md"
+      ]
+    },
+    {
+      "key": "engine_craft",
+      "name": "人物、结构、句式与短剧",
+      "trigger": "人物声线、叙事结构、场景节点、句式零件、短剧改编",
+      "files": [
+        "knowledge_base/20_Characters/人物声线与弧线卡.md",
+        "knowledge_base/30_Plot/叙事结构与场景节点.md",
+        "knowledge_base/40_Writing/03_人物与对话/句式骨架与提示词库.md",
+        "knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md",
+        "knowledge_base/10_WorldBuilding/世界观模板与规则.md"
+      ],
+      "title_keywords": [
+        "人物",
+        "对话",
+        "结构",
+        "短篇",
+        "短剧",
+        "声线"
+      ]
+    },
+    {
+      "key": "engine_insert",
+      "name": "插章与重编号",
+      "trigger": "插章、扩写、重编号",
+      "files": [
+        "knowledge_base/40_Writing/06_质量校验/插章与重编号.md"
+      ],
+      "title_keywords": [
+        "插章",
+        "重编号"
+      ]
     }
   ],
   "evaluations": [
@@ -140,4 +239,3 @@
     }
   ]
 }
-

@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from novel_creation_promax.core.jsonio import now_iso, save_json
+from novel_creation_promax.core.paths import infer_chapter_number
 from novel_creation_promax.core.platform_profiles import load_platform_profile, platform_for_novel_dir
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -159,6 +160,32 @@ def check_dialogue_ratio(text: str) -> tuple:
     return True, f"对话占比 {ratio:.1%} ✓"
 
 
+def check_rule_stack_readiness(novel_dir: str, chapter_path: Path) -> tuple[bool, str]:
+    """Pass 1 must not start when rule_stack has critical assumed facts."""
+    chapter = infer_chapter_number(chapter_path)
+    if chapter is None:
+        return True, "无法推断章号，跳过 rule_stack 检查"
+    path = Path(novel_dir) / "摘要" / f"chapter_{chapter:03d}_rule_stack.json"
+    if not path.is_file():
+        return True, "rule_stack 不存在，跳过"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f"rule_stack 解析失败: {exc}"
+    if not isinstance(payload, dict):
+        return False, "rule_stack 不是对象"
+    assumed = [
+        item
+        for item in payload.get("assumed_facts") or []
+        if isinstance(item, dict) and item.get("critical", True)
+    ]
+    if payload.get("write_ready") is False:
+        return False, f"write_ready=false，存在 {len(assumed)} 条 critical assumed 事实"
+    if assumed:
+        return False, f"存在 {len(assumed)} 条 critical assumed 事实"
+    return True, "write_ready=true"
+
+
 def main():
     parser = argparse.ArgumentParser(description="写作门禁 — Pass 1 → Pass 2 轻量检查")
     parser.add_argument("--chapter", required=True, help="章节文件路径")
@@ -174,6 +201,7 @@ def main():
     text = chapter_path.read_text(encoding="utf-8")
 
     checks = [
+        ("rule_stack 就绪", check_rule_stack_readiness(args.novel_dir, chapter_path)),
         ("字数检查", check_word_count(text, args.novel_dir)),
         ("章节边界", check_chapter_boundary(text, args.novel_dir)),
         ("乒乓球对话", check_ping_pong(text)),

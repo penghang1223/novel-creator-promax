@@ -1,5 +1,5 @@
 ---
-description: 写一章或续写下一章，强制走完整写章流水线
+description: 写一章或续写下一章，强制走完整写章流水线（含写作任务书和结构化审稿）
 argument-hint: "[书名] 第N章 [标题]"
 ---
 
@@ -8,12 +8,15 @@ argument-hint: "[书名] 第N章 [标题]"
 执行顺序：
 
 1. `write_pipeline.py pre`
-2. Pass 1 剧情稿
-3. `writing_gate.py`
-4. Pass 2 去 AI 稿
-5. `write_pipeline.py post`
-6. `verify_project_integrity.py`
+2. `context-agent` 生成五段写作任务书
+3. Pass 1 剧情稿
+4. `writing_gate.py`
+5. Pass 2 去 AI 稿
+6. `reviewer` 五维 JSON → `tools/review_result.py save` / `render`
+7. `write_pipeline.py post`（audit → truth → quality → memory → commit）
+8. `verify_project_integrity.py`
 
+审稿存在 `blocker` 时，quality 与 commit 阶段会阻断；不要绕过。
 正文、摘要、passport、commit 只写工作区。
 
 ## 阶段记录

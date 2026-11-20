@@ -45,17 +45,43 @@ description: 平台热门写作方向调研、市场趋势、榜单题材和赛�
 7. 风险：审核、版权、生命周期、执行难度。
 8. 可执行选题 3–5 个：每个含 logline、目标读者、差异化、风险、下一步验证。
 
-## 输出
+## 输出位置
 
 使用模板：
 
 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/templates/market_research_report.md`
 
-写入工作区：
+| 产物 | 路径 |
+|---|---|
+| 调研报告 | `${CLAUDE_PROJECT_DIR}/素材/调研/{YYYY-MM-DD}_{平台}_热门方向.md` |
 
-```text
-${CLAUDE_PROJECT_DIR}/素材/调研/{YYYY-MM-DD}_{平台}_热门方向.md
+**不要写入** `${CLAUDE_PLUGIN_ROOT}/knowledge_base/`。插件知识库是只读资产，更新时会被替换。
+
+## 长期创意库
+
+调研报告和创意卡共用工作区长期库：`${CLAUDE_PROJECT_DIR}/创意库/`。
+
+| 层 | 路径 | 作用 |
+|---|---|---|
+| 本次运行产物 | `${CLAUDE_PROJECT_DIR}/素材/调研/` | 本轮调研报告 |
+| 长期创意库 | `${CLAUDE_PROJECT_DIR}/创意库/调研/` | 去重、带 ID、可搜索的调研沉淀 |
+
+调研前先查已有报告：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/idea_library.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  search --query "{平台} {题材}" --json
 ```
+
+定稿后归档：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/idea_library.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  archive-research --file "${CLAUDE_PROJECT_DIR}/素材/调研/{YYYY-MM-DD}_{平台}_热门方向.md" \
+  --platform "{平台}" --genre "{题材}"
+```
+
+库索引：`${CLAUDE_PROJECT_DIR}/创意库/_INDEX.md`；归档只复制，不删除原始报告。
 
 报告结尾必须给下一步：
 

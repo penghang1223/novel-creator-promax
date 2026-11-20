@@ -41,37 +41,37 @@ All commands are run from the project root. Scripts live under `novel_creation_p
 python novel_creation_promax/scripts/generate_cover.py --title "书名" --author "作者名" --style auto --output novel_output/{平台}/{小说名}/cover.jpg
 ```
 
-### Memory system (novel-memory-pro)
+### Memory system (novel-memory)
 
 Initialize a new novel memory directory:
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py init --memory-dir novel_output/{平台}/{小说名}/memory
+python skills/novel-memory/scripts/memory_manager.py init --memory-dir novel_output/{平台}/{小说名}/memory
 ```
 
 Bootstrap project memory from a JSON file:
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py bootstrap-project --input project_bootstrap.json --memory-dir novel_output/{平台}/{小说名}/memory
+python skills/novel-memory/scripts/memory_manager.py bootstrap-project --input project_bootstrap.json --memory-dir novel_output/{平台}/{小说名}/memory
 ```
 
 Generate a pre-chapter memory pack for chapter N:
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py chapter-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/memory --output chapter_N_pack.json
+python skills/novel-memory/scripts/memory_manager.py chapter-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/memory --output chapter_N_pack.json
 ```
 
 Sync a chapter summary back into the memory system:
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py sync-chapter --input chapter_N_summary.json --memory-dir novel_output/{平台}/{小说名}/memory
+python skills/novel-memory/scripts/memory_manager.py sync-chapter --input chapter_N_summary.json --memory-dir novel_output/{平台}/{小说名}/memory
 ```
 
 Generate a periodic review pack (recommended every 5–10 chapters):
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py review-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/memory --output review_pack.json
+python skills/novel-memory/scripts/memory_manager.py review-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/memory --output review_pack.json
 ```
 
 Query or inspect memory stats:
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py stats --memory-dir novel_output/{平台}/{小说名}/memory
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py query --type character --filter "basic_info.name=沈知言" --memory-dir novel_output/{平台}/{小说名}/memory
+python skills/novel-memory/scripts/memory_manager.py stats --memory-dir novel_output/{平台}/{小说名}/memory
+python skills/novel-memory/scripts/memory_manager.py query --type character --filter "basic_info.name=沈知言" --memory-dir novel_output/{平台}/{小说名}/memory
 ```
 
 ### Pre/post write quality tools
@@ -89,6 +89,8 @@ Run pre-chapter check (automated 9-question scoring):
 python novel_creation_promax/scripts/pre_write_check.py --chapter chapter_N.txt --memory-dir ./my_novel
 ```
 
+9 问检查同时读取 `摘要/chapter_NNN_rule_stack.json` 的 `unknown_facts`；存在 critical 未知事实时 exit 1。
+
 Run post-chapter audit (red-line scan, style drift, OOC check):
 ```bash
 python novel_creation_promax/scripts/post_write_audit.py --chapter chapter_N.txt --memory-dir ./my_novel
@@ -103,17 +105,17 @@ python novel_creation_promax/scripts/audit_dashboard.py --memory-dir ./my_novel
 
 Extract style DNA from sample text:
 ```bash
-python novel_creation_promax/scripts/style_dna_extractor.py --input sample.txt --output style_dna.json
+python skills/novel-memory/scripts/style_dna_extractor.py --input sample.txt --output style_dna.json
 ```
 
 Check style drift against a saved DNA:
 ```bash
-python novel_creation_promax/scripts/style_calibrator.py --input chapter.txt --style-dna style_dna.json --output report.json
+python skills/novel-memory/skills/novel-memory/scripts/style_calibrator.py --input chapter.txt --style-dna style_dna.json --output report.json
 ```
 
 Check character consistency (OOC risk):
 ```bash
-python novel_creation_promax/scripts/character_consistency_checker.py --input chapter_N.txt --characters ./my_novel/characters.json
+python skills/novel-memory/skills/novel-memory/scripts/character_consistency_checker.py --input chapter_N.txt --characters ./my_novel/characters.json
 ```
 
 Generate character names (anti-collision, anti-AI-homogenization):
@@ -183,10 +185,12 @@ python scripts/sync_to_fanqie.py --list             # list syncable novels
 
 ## Writing pipeline
 
-一键串起写前检查 → 写后审计 → 风格校准 → 记忆同步：
+一键串起写前检查 → 写作任务书 → Pass 1/2 → 结构化审稿 → 写后审计 → 记忆同步：
 ```bash
 # 写前阶段（生成记忆包 + 9问检查）
 python novel_creation_promax/scripts/write_pipeline.py pre --novel-dir "novel_output/番茄/小说名" --chapter N --title "第N章 标题"
+# 可选：知识包必读项/选中路由文件缺失时阻断（也可在 novel_state.json 设置 knowledge_gate=strict）
+python novel_creation_promax/scripts/write_pipeline.py pre --novel-dir "novel_output/番茄/小说名" --chapter N --title "第N章 标题" --strict-knowledge
 
 # 写后阶段（Gate + 审计 + 风格 + 人物 + 记忆回填；失败时自动生成修复计划）
 python novel_creation_promax/scripts/write_pipeline.py post --novel-dir "novel_output/番茄/小说名" --chapter N --title "第N章 标题"
@@ -204,11 +208,15 @@ python novel_creation_promax/scripts/write_pipeline.py fix --novel-dir "novel_ou
 python novel_creation_promax/scripts/write_pipeline.py act-summary --novel-dir "novel_output/番茄/小说名" --volume 1
 ```
 
+**每章链路**：`pre` → `context-agent` 任务书 → Pass 1 → `writing_gate.py` → Pass 2 → `target` 取正文哈希 → `reviewer` JSON（含 target/source_refs，`tools/review_result.py save`）→ `post`（audit/truth/quality/memory/commit）。`review.json` 的 `blocking_count > 0` 或 `stale` 会阻断 quality 与 commit。
+
 **断点续跑**：`摘要/chapter_NNN_passport.json.workflow` 保存章节状态机，`novel_state.json.resume_point` 保存跨进程提示；优先按 `next_action` 或 `action` 重跑对应阶段。`post` 支持 `audit/truth/quality/memory/commit` 单阶段重跑。
 
 **质量债务扫描**：`python tools/quality_debt.py --output novel_output/_workspace/reports/quality_debt.json` 汇总 override、阻塞阶段、未完成流水线、缺失 commit 和待复核真相候选。
 
 **跨产物一致性校验**：`python tools/verify_project_integrity.py --novel-dir "novel_output/番茄/书名"` 交叉核对章节、passport、commit 与 `novel_state.json`；`--root novel_output` 扫描全库，`--strict` 把 warning 也视为失败，`--json` 输出机器可读报告。
+
+**项目工作流与看板**：每本书的外层工作流在 `novel_output/{平台}/{书名}/摘要/workflow.json`，工作区索引在 `novel_output/_workspace/workflows.json`；`python tools/workflow.py --workspace ... status [--novel-dir ...]` 查看单书或全部。`python tools/dashboard.py --workspace ...` 生成单书 `看板.md` 和总看板 `novel_output/_workspace/看板.md`，`--check` 检测漂移。
 
 **SQLite 读模型**：`python tools/sync_story_index.py` 同步 `novel_output/_workspace/index/story_index.sqlite3`，仅用于 Dashboard 和聚合查询；正文、真相文件、passport、summary、commit 仍是唯一真源。
 
@@ -218,7 +226,9 @@ python novel_creation_promax/scripts/write_pipeline.py act-summary --novel-dir "
 
 **质量模式**：`write_pipeline.py post` 默认使用 `deterministic`；关键章节可用 `--quality-mode tribunal --quality-review-report review.json`，报告必须为 `status=pass` 才允许提交。
 
-**知识检索**：`python tools/knowledge_search.py "关键词" --backend lexical|tfidf` 查询可重建的 `knowledge_index.sqlite3`；项目可在 `novel_state.json` 设置 `retrieval_backend`，章节 `knowledge_pack` 会记录检索结果，但原始知识库文件仍是真源。
+**知识检索**：`python tools/knowledge_search.py "关键词" --backend bm25|lexical|tfidf` 查询可重建的 `knowledge_index.sqlite3`；项目可在 `novel_state.json` 设置 `retrieval_backend`，默认 BM25，章节 `knowledge_pack` 会记录检索结果，但原始知识库文件仍是真源。
+
+**能力包**：`python tools/pack_check.py --json` 校验 `knowledge_base/packs/*/pack.json` 的信号、能力键、路由文件与坑点库；章节 `knowledge_pack` 会记录选中的 `pack_id` 与能力键。
 
 **张力与契约**：项目可在 `novel_state.json` 配置 `tension_contract.enabled=true`，再用 `tools/tension_curve.py` 校验章节曲线；`tools/validate_contracts.py` 校验摘要、passport 和项目状态结构。
 
@@ -263,9 +273,19 @@ bash tools/install_hooks.sh         # 启用版本化 git hooks（core.hooksPath
 
 `tools/` holds standalone utilities not tied to the novel creation workflow:
 
+- `opening_score.py` — 开篇 100 分卡 + 12 类低留存。Usage: `python tools/opening_score.py 第1章.md --check`
+- `hit_rate.py` — 15 维爆款命中率与否定决/天花板封顶。Usage: `python tools/hit_rate.py --input 立项.json`
+- `chapter_rhythm.py` — 章节节奏 R1-R8。Usage: `python tools/chapter_rhythm.py --table 作战表.md --check`
+- `ai_flavor_score.py` — 启发式 AI 味评分。Usage: `python tools/ai_flavor_score.py 第1章.md --check`
+- `emotion_ledger.py` — 情绪账：温度档、憋屈累计、上次释放。Usage: `python tools/emotion_ledger.py sync --novel-dir "novel_output/番茄/书名"`
+- `idea_library.py` — 长期创意库：`init` / `archive-idea` / `archive-research` / `search` / `list` / `rebuild-index`。Usage: `python tools/idea_library.py --workspace "$PWD" search --query "番茄 女频" --json`
+- `data_diagnosis.py` — 上线后 11 项数据诊断：阶段判断、症状→病因→处方、七天动作。Usage: `python tools/data_diagnosis.py --input data.md --json`
+- `reader_truth.py` — 作者真相 / 读者已知分层：`sync` 生成 `追踪/时间线/` 视图，`show` 查看某一层，`validate` 校验分层完整性。Usage: `python tools/reader_truth.py sync --novel-dir "novel_output/番茄/书名" --chapter 12`
+- `run_skill_evals.py` — 行为评测：检查技能步骤顺序、禁止捷径、子代理只读权限和审稿 CLI 契约。Usage: `python tools/run_skill_evals.py --json`
 - `health_check.py` — 项目健康自检（18项：全仓密钥正则扫描/路径漂移/引用完整性/功能编号一致性/审计覆盖率等）。Usage: `python tools/health_check.py`
 - `chapter_guard.py` — 章节写作门禁：正文必须有审计报告；`--changed-only` 供 pre-commit 使用，`--strict --min-rate` 供 CI 使用。Usage: `python tools/chapter_guard.py --strict --min-rate 0.8`
 - `verify_project_integrity.py` — 跨产物一致性校验：章节 ↔ passport ↔ commit ↔ `novel_state.json`；`--root` 扫描全库，`--strict` 把 warning 也视为失败，`--json` 输出机器可读报告。Usage: `python tools/verify_project_integrity.py --root novel_output`
+- `review_result.py` — 结构化审稿契约：`init` 创建待填写模板，`target --ensure-revision` 打印正文哈希并创建 revision，`validate` 校验 JSON/目标/引文，`save` 校验并写入（`--bind-target` 为兜底），`status` 查看 blocking 与 stale，`render` 输出人读报告。Usage: `python tools/review_result.py status --novel-dir "novel_output/番茄/书名" --chapter 12 --json`
 - `reconcile_novel_state.py` — 对账 `novel_state.chapters[].audit` 与磁盘真实审计报告，清除"自证式通过"；默认 dry-run。Usage: `python tools/reconcile_novel_state.py --all --apply`
 - `install_hooks.sh` — 启用 `.githooks/` 下的版本化 git hooks。Usage: `bash tools/install_hooks.sh`
 - `backfill_audits.py` — 批量为历史章节补跑 post_write_audit（自动跳过已有审计，支持 `--force`/`--dry-run`/`--all`）。Usage: `python tools/backfill_audits.py --novel-dir "novel_output/番茄/书名"`
@@ -356,7 +376,7 @@ User Request → CLAUDE.md (auto-triggers) → SKILL.md loaded
               └─────────────────────────────────────────┘
                          ↓                  ↓
          ┌─────────────────────┐  ┌───────────────────────┐
-         │   References/       │  │   novel-memory-pro/   │
+         │   References/       │  │   skills/novel-memory/   │
          │   (Knowledge Base)  │  │   (Memory Sub-skill)  │
          └─────────────────────┘  └───────────────────────┘
                          ↓                  ↓
@@ -377,9 +397,9 @@ User Request → CLAUDE.md (auto-triggers) → SKILL.md loaded
 
 | 分类 | 文件 |
 |------|------|
-| **技能入口** | `novel_creation_promax/SKILL.md` · `MODE_REGISTRY.md` · `references/orchestrator.md` · `review-skill/SKILL.md` |
+| **技能入口** | `skills/novel-creator/SKILL.md` · `novel_creation_promax/MODE_REGISTRY.md` · `references/orchestrator.md` · `skills/novel-review/SKILL.md` |
 | **每章必读** | `references/writing_constitution.md` · `references/写作速查卡.md` · `references/chapter_constraint_template.md` |
-| **记忆系统** | `novel-memory-pro/SKILL.md` · `novel-memory-pro/scripts/memory_manager.py` · `assets/memory_structure.json` · `novel-memory-pro/references/workflow_guide.md` |
+| **记忆系统** | `skills/novel-memory/SKILL.md` · `skills/novel-memory/scripts/memory_manager.py` · `assets/memory_structure.json` · `skills/novel-memory/references/workflow_guide.md` |
 | **质量约束** | `knowledge_base/50_Quality/红线检查/红线系统.md` · `knowledge_base/50_Quality/红线检查/章节前检查.md` · `knowledge_base/60_Platform/平台规则.md` |
 | **模板资源** | `assets/templates/project-bootstrap.json` · `assets/templates/chapter-summary.json` · `assets/corpus/name-database.json` · `references/genre-templates/genre-specific-templates.md` |
 | **知识库重点** | `knowledge_base/40_Writing/05_降AI痕迹/降低AI痕迹.md` · `knowledge_base/40_Writing/07_短篇与模板/短篇创作模板.md` · `knowledge_base/40_Writing/01_开篇技巧/开头钩子库.md` · `knowledge_base/40_Writing/风格指南/毒舌风格.md` |

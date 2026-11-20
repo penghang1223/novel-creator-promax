@@ -3,6 +3,8 @@
 > 这些文件**不删除**（防止破坏旧引用），但**不应再被作为主用知识读取**。
 > 模型读取知识时若 Grep/Glob 命中以下文件，应跳过或仅作历史参考。
 > 文件顶部均已加 `<!-- DEPRECATED -->` 标记。
+>
+> **本表记录的是全量库 novel-creator-pro 的历史路径**。本精简库（plugin）不含 `90_Archive/`、`00_Inbox/` 等目录，表中路径仅作迁移追溯，不是本库活跃引用。
 
 ---
 
@@ -25,10 +27,10 @@
 
 | 文件 | 原因 | 替代 |
 |---|---|---|
-| `knowledge_base/90_Archive/40_Writing_写作技巧/人物设定写作.md` | 旧分类 | `20_Characters/` + `03_人物与对话/` |
-| `knowledge_base/90_Archive/40_Writing_写作技巧/大纲写作.md` | 旧分类 | `30_Plot/` + `02_节奏与结构/工作流v2.md` |
-| `knowledge_base/90_Archive/40_Writing_写作技巧/正文写作.md` | 旧分类 | `40_Writing/01_~07_` 阶段目录 |
-| `knowledge_base/90_Archive/40_Writing_写作技巧/结构设计写作.md` | 旧分类 | `30_Plot/` + `02_节奏与结构/` |
+| `knowledge_base/90_Archive/40_Writing_写作技巧/人物设定技巧.md` | 旧分类 | `20_Characters/` + `03_人物与对话/` |
+| `knowledge_base/90_Archive/40_Writing_写作技巧/大纲规划技巧.md` | 旧分类 | `30_Plot/` + `02_节奏与结构/工作流v2.md` |
+| `knowledge_base/90_Archive/40_Writing_写作技巧/叙事引擎.md` | 旧分类 | `40_Writing/01_~07_` 阶段目录 |
+| `knowledge_base/90_Archive/40_Writing_写作技巧/结构与节奏.md` | 旧分类 | `30_Plot/` + `02_节奏与结构/` |
 
 ## 路由表旧版（被 `_ROUTING.md` + `_ROUTES.json` 取代）
 

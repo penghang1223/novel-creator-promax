@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "pack_id": "qidian-male-fantasy",
+  "version": "1.0.0",
+  "display_name": "起点男频玄幻",
+  "signals": {
+    "platform": "起点",
+    "genre_tags": ["玄幻", "男频", "升级", "系统", "修仙", "争霸"]
+  },
+  "capabilities": ["power_fantasy", "system_cheat", "escalation", "emotional_payoff"],
+  "routes": {
+    "power_fantasy": {
+      "name": "能力升级与战力",
+      "trigger_capabilities": ["power_fantasy", "system_cheat", "escalation"],
+      "files": [
+        "knowledge_base/40_Writing/04_场景与描写/爽点设计.md",
+        "knowledge_base/30_Plot/长篇节奏循环引擎.md",
+        "knowledge_base/20_Characters/角色弧线模板.md"
+      ]
+    },
+    "rhythm": {
+      "name": "长线节奏",
+      "trigger_capabilities": ["escalation"],
+      "files": [
+        "knowledge_base/40_Writing/02_节奏与结构/每章节奏公式与卡章技巧.md"
+      ]
+    },
+    "opening": {
+      "name": "开篇",
+      "trigger_capabilities": [],
+      "files": [
+        "knowledge_base/40_Writing/01_开篇技巧/黄金三章技巧.md",
+        "knowledge_base/40_Writing/01_开篇技巧/开头钩子库.md"
+      ]
+    }
+  },
+  "pitfalls": "pitfalls.md"
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "kind": "characters",
+  "records": [
+    {
+      "id": "char_001",
+      "name": "林砚",
+      "knowledge_boundary": [
+        "旧案"
+      ],
+      "secrets": [
+        "父亲是真凶"
+      ]
+    }
+  ]
+}

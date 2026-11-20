@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from novel_creation_promax.core.chapter_commit import record_chapter_commit  # noqa: E402
+from novel_creation_promax.core.chapter_commit import commit_id_for, record_chapter_commit  # noqa: E402
 from novel_creation_promax.core.integrity import (  # noqa: E402
     report_has_errors,
     verify_novel_integrity,
@@ -26,6 +26,7 @@ from novel_creation_promax.core.integrity import (  # noqa: E402
 from novel_creation_promax.core.jsonio import save_json  # noqa: E402
 from novel_creation_promax.core.passport import init_passport, passport_path, save_passport  # noqa: E402
 from novel_creation_promax.core.paths import count_chinese_chars  # noqa: E402
+from novel_creation_promax.core.review_result import REVIEW_DIMENSIONS, save_review_result  # noqa: E402
 
 
 def make_novel(tmp: str, name: str = "测试书", platform: str = "番茄") -> Path:
@@ -178,6 +179,10 @@ class CommitIntegrityTest(unittest.TestCase):
             artifacts={"chapter": chapter_file},
         )
 
+    def _full_commit(self, novel: Path, chapter: int = 1, chapter_file: Path | None = None) -> dict:
+        chapter_file = chapter_file or write_chapter(novel, chapter)
+        return write_commit(novel, chapter, chapter_file, passport_path(novel, chapter))
+
     def test_passed_pipeline_without_commit_is_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             novel = make_novel(tmp)
@@ -193,7 +198,7 @@ class CommitIntegrityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             novel = make_novel(tmp)
             chapter_file = write_chapter(novel)
-            commit = self._commit(novel, chapter_file=chapter_file)
+            commit_id = commit_id_for(1, chapter_file)
             write_passport(
                 novel,
                 chapter_file=chapter_file,
@@ -201,9 +206,11 @@ class CommitIntegrityTest(unittest.TestCase):
                 commit={
                     "status": "accepted",
                     "path": "素材/commits/chapter_001.commit.json",
-                    "id": commit["commit_id"],
+                    "id": commit_id,
                 },
             )
+            commit = self._full_commit(novel, chapter_file=chapter_file)
+            self.assertEqual(commit["commit_id"], commit_id)
             write_state(novel, current_chapter=1, last_completed_chapter=1)
 
             report = verify_novel_integrity(novel)
@@ -237,8 +244,8 @@ class CommitIntegrityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             novel = make_novel(tmp)
             chapter_file = write_chapter(novel)
-            self._commit(novel, chapter_file=chapter_file)
             write_passport(novel, chapter_file=chapter_file, pipeline_result="pass")
+            self._full_commit(novel, chapter_file=chapter_file)
 
             report = verify_novel_integrity(novel)
 
@@ -418,6 +425,151 @@ class InputValidationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):
                 verify_root_integrity(Path(tmp) / "不存在的根")
+
+
+def write_review(novel: Path, chapter: int = 1, *, blocking: bool = False) -> Path:
+    issues = []
+    if blocking:
+        issues = [
+            {
+                "id": "R-001",
+                "severity": "blocker",
+                "assessment": "confirmed",
+                "dimension": "dialogue",
+                "location": "第1段",
+                "evidence": "测试阻塞项",
+                "impact": "测试阻塞项",
+                "repair": "测试阻塞项",
+                "source_refs": [],
+            }
+        ]
+    payload = {
+        "mode": "single",
+        "dimensions": {
+            name: {"score": 8, "summary": "ok", "issues": []}
+            for name in REVIEW_DIMENSIONS
+        },
+        "issues": issues,
+        "summary": "测试审稿",
+    }
+    path = save_review_result(novel, chapter, payload, bind_target=True)
+    return path
+
+
+def write_rule_stack(
+    novel: Path,
+    chapter: int = 1,
+    *,
+    write_ready: bool = True,
+    critical: int = 0,
+) -> Path:
+    path = novel / "摘要" / f"chapter_{chapter:03d}_rule_stack.json"
+    save_json(
+        path,
+        {
+            "chapter": chapter,
+            "write_ready": write_ready,
+            "unknown_facts": [
+                {"id": f"u{index}", "critical": True, "detail": "测试未知事实"}
+                for index in range(critical)
+            ],
+        },
+    )
+    return path
+
+
+def write_commit(
+    novel: Path,
+    chapter: int,
+    chapter_file: Path,
+    passport_file: Path,
+    *,
+    include_truth_delta: bool = True,
+) -> dict:
+    audit = novel / "素材" / f"audit_ch{chapter:03d}.json"
+    audit.write_text("{}\n", encoding="utf-8")
+    truth_delta = novel / "摘要" / f"chapter_{chapter:03d}_truth_delta.json"
+    truth_delta.write_text("{}\n", encoding="utf-8")
+    artifacts = {"chapter": chapter_file, "passport": passport_file, "audit": audit}
+    if include_truth_delta:
+        artifacts["truth_delta"] = truth_delta
+    review = novel / "摘要" / f"chapter_{chapter:03d}_review.json"
+    if review.is_file():
+        artifacts["review_result"] = review
+    return record_chapter_commit(
+        novel,
+        chapter,
+        chapter_file=chapter_file,
+        artifacts=artifacts,
+    )
+
+
+class StateContractTest(unittest.TestCase):
+    def test_resume_stage_and_action_mismatch_are_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_novel(tmp)
+            chapter_file = write_chapter(novel)
+            write_passport(
+                novel,
+                chapter_file=chapter_file,
+                workflow={"stage": "audit", "status": "running", "next_action": "post --phase audit"},
+            )
+            write_state(
+                novel,
+                current_chapter=1,
+                resume_point={"chapter": 1, "stage": "commit", "action": "pre", "status": "running"},
+            )
+
+            report = verify_novel_integrity(novel)
+
+            self.assertIn("resume_stage_mismatch", codes(report, "error"))
+            self.assertIn("resume_action_mismatch", codes(report, "error"))
+
+    def test_stale_review_committed_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_novel(tmp)
+            chapter_file = write_chapter(novel)
+            passport = write_passport(novel, chapter_file=chapter_file)
+            write_review(novel)
+            write_commit(novel, 1, chapter_file, passport_path(novel, 1))
+
+            chapter_file.write_text("正文已经改过。" * 80, encoding="utf-8")
+            report = verify_novel_integrity(novel)
+
+            self.assertIn("review_stale_committed", codes(report, "error"))
+
+    def test_commit_missing_truth_delta_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_novel(tmp)
+            chapter_file = write_chapter(novel)
+            write_passport(novel, chapter_file=chapter_file)
+            write_commit(novel, 1, chapter_file, passport_path(novel, 1), include_truth_delta=False)
+
+            report = verify_novel_integrity(novel)
+
+            self.assertIn("commit_artifact_missing", codes(report, "error"))
+
+    def test_rule_stack_not_ready_with_prose_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_novel(tmp)
+            chapter_file = write_chapter(novel)
+            write_passport(novel, chapter_file=chapter_file)
+            write_rule_stack(novel, write_ready=False, critical=1)
+
+            report = verify_novel_integrity(novel)
+
+            self.assertIn("rule_stack_not_ready_with_prose", codes(report, "error"))
+            self.assertIn("rule_stack_critical_unknown_with_prose", codes(report, "error"))
+
+    def test_review_missing_but_passport_pass_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_novel(tmp)
+            chapter_file = write_chapter(novel)
+            write_passport(novel, chapter_file=chapter_file, pipeline={"review_result": "pass"})
+
+            report = verify_novel_integrity(novel)
+
+            self.assertIn("review_missing_but_pass", codes(report, "error"))
 
 
 class CliTest(unittest.TestCase):

@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "name": "reader-truth-runtime",
+  "cases": [
+    {
+      "id": "reader-truth-cli-sync",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "import shutil; from pathlib import Path; root=Path('{tmp}/番茄/测试书'); (root/'设定'/'真相文件').mkdir(parents=True, exist_ok=True); shutil.copy('{fixtures}/reader_events.json', root/'设定'/'真相文件'/'events.json'); shutil.copy('{fixtures}/reader_characters.json', root/'设定'/'真相文件'/'characters.json')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/reader_truth.py",
+            "sync",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "12"
+          ],
+          "expect_exit": 0,
+          "expect_files": [
+            "{tmp}/番茄/测试书/追踪/时间线/作者真相.md",
+            "{tmp}/番茄/测试书/追踪/时间线/读者已知.md"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/reader_truth.py",
+            "show",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "12",
+            "--layer",
+            "unrevealed",
+            "--json"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "evt_002"
+          ]
+        }
+      ]
+    }
+  ]
+}

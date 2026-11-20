@@ -143,4 +143,4 @@
 |------|------|
 | `memory/entity_graph.json` | 实体图谱数据 |
 | `assets/templates/entity-graph.json` | 空模板 |
-| `novel-memory-pro/scripts/entity_graph_manager.py` | 管理脚本 |
+| `skills/novel-memory/scripts/entity_graph_manager.py` | 管理脚本 |

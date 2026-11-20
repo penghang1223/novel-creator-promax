@@ -44,9 +44,18 @@ knowledge_base/.obsidian/cache/
 knowledge_base/.obsidian/workspace*
 knowledge_base/.obsidian/workspace.json
 
-# 注意：novel_output/ 曾被整体忽略，导致已跟踪的 565 个章节之外，
-# 新写的章节被静默排除出版本库。小说正文是本项目的核心资产，必须入库。
-# 图片走 Git LFS（见 .gitattributes），不要在这里再忽略 novel_output/。
+# 工作区产物不属于插件仓库。
+# 插件源码仓库不再作为写作工作区；用户作品、记忆和状态放在独立工作区。
+novel_output/
+创意/
+创意库/
+素材/
+MEMORY.md
+.claude/memory/
+索引对齐备份_*/
+*备份_2026*/
+.workbuddy/
+knowledge_base/80_Projects/*/
 
 # Local editor noise
 .vscode/

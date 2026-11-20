@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "chapter": 1,
+  "mode": "single",
+  "dimensions": {
+    "dialogue": {
+      "score": 9,
+      "summary": "对话有攻防，声纹可区分。",
+      "issues": []
+    },
+    "coolpoint": {
+      "score": 9,
+      "summary": "爽点有铺垫也有反应层。",
+      "issues": []
+    },
+    "structure": {
+      "score": 9,
+      "summary": "冲突建立快，断章有效。",
+      "issues": []
+    },
+    "anti_ai": {
+      "score": 9,
+      "summary": "没有明显套话和情绪标签。",
+      "issues": []
+    },
+    "reading_power": {
+      "score": 9,
+      "summary": "章末信息差留得住人。",
+      "issues": []
+    }
+  },
+  "issues": [],
+  "blocking_count": 0,
+  "status": "pass",
+  "grade": "S",
+  "summary": "行为评测用通过样例。",
+  "generated_at": "2026-11-20T12:00:00"
+}

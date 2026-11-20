@@ -20,7 +20,8 @@ OUTPUT_DIR = PROJECT_ROOT / "novel_output"
 
 # Scripts (ship with the plugin, not the workspace)
 SCRIPTS_DIR = PLUGIN_ROOT / "novel_creation_promax" / "scripts"
-MEMORY_SCRIPT = PLUGIN_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
+MEMORY_SCRIPTS_DIR = PLUGIN_ROOT / "skills" / "novel-memory" / "scripts"
+MEMORY_SCRIPT = MEMORY_SCRIPTS_DIR / "memory_manager.py"
 
 # Supported platforms
 PLATFORMS = ["番茄", "起点", "知乎", "七猫", "飞卢", "晋江"]

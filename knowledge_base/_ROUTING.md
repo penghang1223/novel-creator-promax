@@ -58,6 +58,24 @@
 - `knowledge_base/40_Writing/风格指南/写作风格技能合集/{作家}-writing-style/SKILL.md`
 - 可用作家：bing-lin / chen-dong / er-gen / feng-huo / fo-qian / gun-kai / hu-wei / hu-zi / mai-bao / mao-ni / peng-pai 等
 
+## 引擎方法（按需读取）
+
+> 来自 novel-engine 的提炼，统一索引入口：`knowledge_base/40_Writing/引擎方法索引.md`。
+> 数字以 `_PROFILES.json` 与 `core/thresholds.py` 为准，不照抄外部口径。
+
+| 场景 | 读什么 |
+|---|---|
+| 立项 / 题材能不能写 | `50_Quality/评估系统/15维爆款命中率.md` |
+| 开篇验收 / 前三章没人看 | `40_Writing/01_开篇技巧/开篇100分卡.md` |
+| 写后机检 / 投稿前深度审稿 | `50_Quality/量化门禁/10步量化门禁.md` · `50_Quality/评估系统/16维深度审稿.md` |
+| 长篇连载 / 每 5-10 章复盘 | `30_Plot/六台账与20条毒点.md` · `40_Writing/02_节奏与结构/跨章规范与七遍改稿.md` · `40_Writing/06_质量校验/章节节奏R1-R8.md` · `40_Writing/06_质量校验/长篇实战教训.md` |
+| AI 味重 / 过检测 | `40_Writing/05_降AI痕迹/朱雀祛AI味五维.md` · `40_Writing/05_降AI痕迹/AI禁用词与句式表.md` |
+| 上线后数据差 / 断流 / 切书 / 换平台 | `60_Platform/数据诊断与救盘.md` · `60_Platform/平台机制与换挡.md` |
+| 人物声线 / 结构 / 句式 / 短剧 | `20_Characters/人物声线与弧线卡.md` · `30_Plot/叙事结构与场景节点.md` · `40_Writing/03_人物与对话/句式骨架与提示词库.md` · `40_Writing/07_短篇与模板/短剧改编10维.md` |
+| 插章 / 重编号 | `40_Writing/06_质量校验/插章与重编号.md` |
+
+自动选择规则：`engine_opening`（前 5 章）、`engine_continuity`（每 5 章）、`engine_quality` / `engine_deai` / `engine_craft` / `engine_insert`（标题关键词命中）。`engine_project` 和 `engine_ops` 为手动/命令入口，不进入每章 knowledge pack。
+
 ---
 
 ## 写后审计（强制硬门禁）

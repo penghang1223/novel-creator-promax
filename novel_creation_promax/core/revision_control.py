@@ -14,7 +14,7 @@ from .chapter_commit import commit_path, remove_chapter_commit
 from .chapter_workflow import transition
 from .jsonio import load_json, now_iso, save_json
 from .passport import load_passport, passport_path, save_passport
-from .paths import find_chapter_file, rel
+from .paths import count_chinese_chars, find_chapter_file, rel
 from .project_state import ensure_state_shape
 
 
@@ -45,6 +45,89 @@ def _safe_revision_id(value: str) -> str:
     if not value or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for char in value):
         raise ValueError(f"非法 revision id: {value}")
     return value
+
+
+def _chapter_revision_dir(novel_dir: Path, chapter: int) -> Path:
+    return novel_dir / REVISION_ROOT / f"chapter_{chapter:03d}"
+
+
+def current_revision_path(novel_dir: Path, chapter: int) -> Path:
+    return _chapter_revision_dir(novel_dir, chapter) / "current.json"
+
+
+def revision_history_dir(novel_dir: Path, chapter: int) -> Path:
+    return _chapter_revision_dir(novel_dir, chapter) / "history"
+
+
+def current_revision(novel_dir: Path, chapter: int) -> dict[str, Any] | None:
+    """Return the tracked current revision for a chapter, if valid."""
+    payload = load_json(current_revision_path(novel_dir, chapter), {})
+    if not isinstance(payload, dict):
+        return None
+    if not payload.get("revision_id") or not payload.get("content_hash"):
+        return None
+    return payload
+
+
+def list_chapter_revisions(novel_dir: Path, chapter: int) -> list[dict[str, Any]]:
+    """Return immutable revision records ordered by version."""
+    records: list[dict[str, Any]] = []
+    for path in sorted(revision_history_dir(novel_dir, chapter).glob("*.json")):
+        payload = load_json(path, {})
+        if isinstance(payload, dict) and payload.get("revision_id"):
+            records.append(payload)
+    records.sort(key=lambda item: int(item.get("version", 0) or 0))
+    return records
+
+
+def ensure_current_revision(
+    novel_dir: Path,
+    chapter: int,
+    *,
+    source: str = "unknown",
+) -> dict[str, Any]:
+    """Create a new immutable revision when the chapter content changed.
+
+    The current revision is a small pointer at ``current.json``; every content
+    hash gets exactly one record under ``history/``. Calling this repeatedly on
+    unchanged content is a no-op, so it is safe to run before review and after
+    commit.
+    """
+    chapter_file = find_chapter_file(novel_dir, chapter)
+    if chapter_file is None:
+        raise FileNotFoundError(f"未找到第{chapter}章正文")
+    content = chapter_file.read_text(encoding="utf-8")
+    digest = sha256_text(content)
+    current = current_revision(novel_dir, chapter)
+    if current is not None and current.get("content_hash") == digest:
+        return current
+
+    previous_version = int(current.get("version", 0) or 0) if current else 0
+    revision_id = f"rev_{now_iso().replace('-', '').replace(':', '')}_{uuid.uuid4().hex[:8]}"
+    record = {
+        "schema_version": REVISION_SCHEMA_VERSION,
+        "type": "chapter_revision",
+        "revision_id": revision_id,
+        "chapter": chapter,
+        "version": previous_version + 1,
+        "parent_version": previous_version or None,
+        "parent_revision_id": current.get("revision_id", "") if current else "",
+        "chapter_file": rel(chapter_file, novel_dir),
+        "content_hash": digest,
+        "word_count": count_chinese_chars(content),
+        "source": source,
+        "created_at": now_iso(),
+    }
+    history_path = revision_history_dir(novel_dir, chapter) / f"{revision_id}.json"
+    _write_text_atomic(history_path, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    _write_text_atomic(
+        current_revision_path(novel_dir, chapter),
+        json.dumps(record, ensure_ascii=False, indent=2) + "\n",
+    )
+    return record
+
+
+record_chapter_revision = ensure_current_revision
 
 
 def _write_text_atomic(path: Path, content: str) -> None:
@@ -93,6 +176,10 @@ def create_snapshot(
                 "size": path.stat().st_size,
             }
         )
+    snapshot_content = chapter_file.read_text(encoding="utf-8")
+    snapshot_hash = sha256_text(snapshot_content)
+    tracked = current_revision(novel_dir, chapter)
+    tracked = tracked if tracked is not None and tracked.get("content_hash") == snapshot_hash else None
     manifest = {
         "schema_version": REVISION_SCHEMA_VERSION,
         "type": "snapshot",
@@ -101,6 +188,9 @@ def create_snapshot(
         "reason": reason,
         "source": source,
         "created_at": now_iso(),
+        "content_hash": snapshot_hash,
+        "revision_id": tracked.get("revision_id", "") if tracked else "",
+        "revision_version": tracked.get("version") if tracked else None,
         "files": files,
     }
     save_json(target / "manifest.json", manifest)
@@ -228,12 +318,15 @@ def review_proposal(novel_dir: Path, chapter: int, proposal_id: str, *, approve:
     proposed_content = proposed_path.read_text(encoding="utf-8")
     _write_text_atomic(chapter_file, proposed_content)
     _mark_chapter_dirty(novel_dir, chapter, f"已批准 revision proposal {proposal_id}，需重新执行 post")
+    new_revision = ensure_current_revision(novel_dir, chapter, source="revision")
     manifest.update(
         {
             "status": "approved",
             "reviewed_at": now_iso(),
             "snapshot_id": snapshot["snapshot_id"],
             "applied_sha256": sha256_text(proposed_content),
+            "applied_revision_id": new_revision["revision_id"],
+            "applied_revision_version": new_revision["version"],
         }
     )
     save_json(manifest_path, manifest)
@@ -256,4 +349,9 @@ def restore_snapshot(novel_dir: Path, chapter: int, snapshot_id: str) -> dict[st
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
     _mark_chapter_dirty(novel_dir, chapter, f"已恢复 snapshot {snapshot_id}，需重新执行 post")
-    return manifest
+    new_revision = ensure_current_revision(novel_dir, chapter, source="restore")
+    return {
+        **manifest,
+        "restored_revision_id": new_revision["revision_id"],
+        "restored_revision_version": new_revision["version"],
+    }

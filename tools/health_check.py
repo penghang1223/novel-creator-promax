@@ -87,9 +87,9 @@ def check_scripts():
         "novel_creation_promax/scripts/write_pipeline.py",
         "novel_creation_promax/scripts/skill_health_check.py",
         "novel_creation_promax/scripts/name_generator.py",
-        "novel_creation_promax/novel-memory-pro/scripts/memory_manager.py",
-        "novel_creation_promax/scripts/style_dna_extractor.py",
-        "novel_creation_promax/scripts/style_calibrator.py",
+        "skills/novel-memory/scripts/memory_manager.py",
+        "skills/novel-memory/scripts/style_dna_extractor.py",
+        "skills/novel-memory/skills/novel-memory/scripts/style_calibrator.py",
         "novel_creation_promax/scripts/plot_continuity_checker.py",
         "scripts/sync_to_fanqie.py",
         "tools/file_reference_counter.py",
@@ -242,7 +242,7 @@ def check_agents_paths():
 
 def check_skill_paths():
     print("\n[7/18] SKILL.md 命令路径检查")
-    skill = PROJECT_ROOT / "novel_creation_promax" / "SKILL.md"
+    skill = PROJECT_ROOT / "skills" / "novel-creator" / "SKILL.md"
     if not skill.exists():
         error("SKILL.md 不存在")
         return
@@ -302,7 +302,7 @@ def check_publish_dirs():
 
 def check_frontmatter():
     print("\n[10/18] SKILL.md frontmatter 格式")
-    skill = PROJECT_ROOT / "novel_creation_promax" / "SKILL.md"
+    skill = PROJECT_ROOT / "skills" / "novel-creator" / "SKILL.md"
     if not skill.exists():
         error("SKILL.md 不存在")
         return
@@ -313,19 +313,19 @@ def check_frontmatter():
     else:
         error("SKILL.md frontmatter 缺少 --- 包裹")
 
-    # 也检查 novel-memory-pro/SKILL.md
-    mm_skill = PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "SKILL.md"
+    # 也检查 skills/novel-memory/SKILL.md
+    mm_skill = PROJECT_ROOT / "skills" / "novel-memory" / "SKILL.md"
     if mm_skill.exists():
         mm_content = mm_skill.read_text(encoding="utf-8")
         if mm_content.startswith("---"):
-            ok("novel-memory-pro/SKILL.md frontmatter 格式正确")
+            ok("skills/novel-memory/SKILL.md frontmatter 格式正确")
         else:
-            error("novel-memory-pro/SKILL.md frontmatter 缺少 --- 包裹")
+            error("skills/novel-memory/SKILL.md frontmatter 缺少 --- 包裹")
 
 
 def check_references():
     print("\n[11/18] 引用文件存在性检查")
-    skill = PROJECT_ROOT / "novel_creation_promax" / "SKILL.md"
+    skill = PROJECT_ROOT / "skills" / "novel-creator" / "SKILL.md"
     if not skill.exists():
         error("SKILL.md 不存在")
         return
@@ -338,7 +338,7 @@ def check_references():
         value = match.group(1)
         if value.startswith("python "):
             continue
-        if value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "novel-memory-pro/", "review-skill/", "knowledge_base/")):
+        if value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "skills/", "knowledge_base/")):
             refs.add(value)
 
     missing = 0
@@ -352,7 +352,7 @@ def check_references():
             continue
         if ref_path.startswith("novel_creation_promax/"):
             full_path = PROJECT_ROOT / ref_path
-        elif ref_path.startswith(("references/", "docs/", "assets/", "novel-memory-pro/", "review-skill/")):
+        elif ref_path.startswith(("references/", "docs/", "assets/", "skills/")):
             full_path = PROJECT_ROOT / "novel_creation_promax" / ref_path
         elif ref_path.startswith("knowledge_base/"):
             full_path = PROJECT_ROOT / ref_path

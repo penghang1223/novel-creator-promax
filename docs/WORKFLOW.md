@@ -20,26 +20,37 @@ research ──→ idea ──→ init ──→ write ──→ publish
 | `write` | `/novel-creator-pro:write` | `素材/commits/chapter_*.commit.json` | 至少一个 accepted commit |
 | `publish` | `/novel-creator-pro:publish` | `novel_state.publish_state` | 至少一个已同步/已发布状态 |
 
+> `素材/调研/` 和 `创意/` 都是 `${CLAUDE_PROJECT_DIR}` 下的**本次运行产物**，不是插件 `knowledge_base/`。
+> 长期沉淀写入 `${CLAUDE_PROJECT_DIR}/创意库/`（`创意卡/`、`调研/`、`_INDEX.md`），由 `tools/idea_library.py` 维护。
+> 插件知识库只读，写入会在插件更新时丢失。
+
 ## 状态文件
 
-工作区级状态：
+每本书独立：
 
 ```text
-${CLAUDE_PROJECT_DIR}/novel_output/_workspace/workflow.json
+${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}/摘要/workflow.json
 ```
 
-示例：
+工作区索引（只记录有哪些书，不存业务状态）：
+
+```text
+${CLAUDE_PROJECT_DIR}/novel_output/_workspace/workflows.json
+```
+
+示例（单书）：
 
 ```json
 {
   "schema_version": "1.0",
-  "stage": "idea",
-  "status": "done",
+  "book": "书名",
   "platform": "番茄",
   "genre": "都市",
+  "stage": "idea",
+  "status": "done",
   "research_report": "素材/调研/2026-11-20_番茄_都市_热门方向.md",
   "idea_card": "",
-  "novel_dir": "",
+  "novel_dir": "novel_output/番茄/书名",
   "history": [],
   "overrides": [],
   "created_at": "2026-11-20T...",
@@ -47,9 +58,10 @@ ${CLAUDE_PROJECT_DIR}/novel_output/_workspace/workflow.json
 }
 ```
 
+- 每本书的 `stage` 独立，开第二本书不会覆盖第一本。
 - `stage` 是**最后完成的阶段**；启动后为空，完成调研后变为 `research`，以此类推。
-- `next` 由工具计算。
 - `history` 记录每次推进；`overrides` 记录强制跳阶段及原因。
+- 旧版全局 `novel_output/_workspace/workflow.json` 仍可读；用 `migrate --novel-dir` 迁移到对应书，并备份为 `workflow.legacy.json`。
 - 状态只写工作区，不写插件目录。
 
 推进示例：
@@ -66,31 +78,73 @@ advance --to publish  → stage: "publish"
 ## 命令
 
 ```bash
-# 启动
-python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  start --platform 番茄 --genre 都市
+BOOK="novel_output/番茄/书名"
 
-# 查看
+# 启动某本书的独立工作流
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  start --platform 番茄 --genre 都市 --novel-dir "$BOOK"
+
+# 查看单书
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  status --novel-dir "$BOOK"
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  status --novel-dir "$BOOK" --json
+
+# 查看全部书
 python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" status
-python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
 
 # 只校验，不改状态
 python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  gate --to init --novel-dir "novel_output/番茄/书名"
+  gate --to init --novel-dir "$BOOK"
 
 # 推进
 python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  advance --to idea
-
+  advance --to research --novel-dir "$BOOK"
 python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  advance --to init --novel-dir "novel_output/番茄/书名"
+  advance --to init --novel-dir "$BOOK"
 
+# 迁移旧全局 workflow.json
 python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  advance --to write --novel-dir "novel_output/番茄/书名"
-
-python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_DIR}" \
-  advance --to publish --novel-dir "novel_output/番茄/书名"
+  migrate --novel-dir "$BOOK"
 ```
+
+## 看板
+
+```text
+单书看板: ${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}/看板.md
+总看板:   ${CLAUDE_PROJECT_DIR}/novel_output/_workspace/看板.md
+```
+
+```bash
+# 生成全部看板
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/dashboard.py" --workspace "${CLAUDE_PROJECT_DIR}"
+
+# 只刷新一本书
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/dashboard.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  --novel-dir "$BOOK"
+
+# 检查漂移
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/dashboard.py" --workspace "${CLAUDE_PROJECT_DIR}" --check
+```
+
+单书头部固定：
+
+```text
+**已写 N 章** | **阶段: write** | **健康: OK|WARN|ERROR**
+```
+
+总看板头部固定：
+
+```text
+**共 X 本** | **Y 本连载中** | **Z 本完成**
+```
+
+看板是**只读派生视图**，不替代任何门禁。刷新时机：
+
+- `write_pipeline.py post --phase commit` 之后
+- `workflow.py advance` 之后
+- `project_bootstrap_pipeline.py init` 之后
+- 手动运行 `tools/dashboard.py`
 
 ## 与现有门禁的关系
 
@@ -101,6 +155,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_
 | `write_pipeline.py` | 单章阶段与断点续跑 | 每章仍必须走 pre/post |
 | `writing_gate.py` | Pass 1 质量门禁 | 不影响工作流阶段 |
 | `verify_project_integrity.py` | 章节/passport/commit/state 一致性 | 不判断项目阶段 |
+| `dashboard.py` | 单书/总看板派生视图 | 只读，不替代任何门禁 |
 
 工作流是“外层导航”，不是第二套章节状态机。任何阶段门禁失败，先修证据，不要改状态文件绕过。
 

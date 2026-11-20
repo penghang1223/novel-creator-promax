@@ -27,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # 需要扫描的目录
 SCAN_DIRS = [
     "knowledge_base",
+    "skills",
     "novel_creation_promax",
     "tools",
     "scripts",

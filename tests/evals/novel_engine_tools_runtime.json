@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0",
+  "name": "novel-engine-tools-runtime",
+  "cases": [
+    {
+      "id": "opening-score-cli",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "tools/opening_score.py",
+            "{fixtures}/opening_good.md",
+            "--check"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "开篇评分"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/opening_score.py",
+            "{fixtures}/opening_bad.md",
+            "--check"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "低留存"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "data-diagnosis-cli",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "tools/data_diagnosis.py",
+            "--input",
+            "{fixtures}/diagnosis_data.md",
+            "--json"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "\"stage\": \"L3\"",
+            "断更"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chapter-rhythm-cli",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "tools/chapter_rhythm.py",
+            "--table",
+            "{fixtures}/rhythm_bad.md",
+            "--check"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "R5"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai-flavor-cli",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "tools/ai_flavor_score.py",
+            "{fixtures}/ai_flavor_sample.md",
+            "--check"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "AI 味"
+          ]
+        }
+      ]
+    }
+  ]
+}

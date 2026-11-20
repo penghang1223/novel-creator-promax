@@ -46,18 +46,21 @@ python novel_creation_promax/scripts/project_bootstrap_pipeline.py seal --novel-
 ## 每章强制流程
 
 1. 校验真相文件，并生成章节记忆包。
-2. 按 `knowledge_base/_ROUTES.json` 生成 `摘要/chapter_NNN_knowledge_pack.json`。
-3. 编译 `摘要/chapter_NNN_rule_stack.json` 和 `素材/chapter_NNN_truth_brief.md`。
-4. 回答 9 问并运行 `novel_creation_promax/scripts/pre_write_check.py`。
-5. 按 rule_stack 组装场景写作卡。
-6. 写 Pass 1 剧情稿。
-7. 运行 `novel_creation_promax/scripts/writing_gate.py`。
-8. 写 Pass 2 去AI稿。
-9. `post` 自动提取 `素材/truth_delta_candidates_chNNN.json|md`，先审查候选事实，再补齐 `摘要/chapter_NNN_truth_delta.json`。
-10. 运行 `novel_creation_promax/scripts/post_write_audit.py`。
-11. 运行字数归一化、truth delta、风格校准和人物一致性检查。
-12. 生成章节摘要和 chapter passport，回填 `novel-memory-pro`、真相文件和 `novel_state.json`。
-13. 所有必需检查通过后生成 `素材/commits/chapter_NNN.commit.json`，用 SHA-256 绑定正文、passport、audit、truth delta 和检查报告；后续章节门禁会校验这条提交记录。
+2. 按 `knowledge_base/_ROUTES.json` 生成 `摘要/chapter_NNN_knowledge_pack.json`：`required` 五项 + 按章节号、标题和**细纲场景标签**选中的路由；`retrieval` 只检索 `20_Characters` / `30_Plot` / `40_Writing`，避免项目元数据污染。
+   `required` 或 `selected_routes` 存在缺失文件时，默认记为 `knowledge_pack=warning` 并逐项打印；设置 `novel_state.json` 的 `knowledge_gate="strict"` 或运行 `pre --strict-knowledge` 时改为阻断。
+3. 编译 `摘要/chapter_NNN_rule_stack.json` 和 `素材/chapter_NNN_truth_brief.md`；rule_stack 会列出 `unknown_facts`、`assumed_facts`、`evidence_policy`、`write_ready` 和 `truth_layers`（作者真相 / 读者已知 / 未揭示事实），并生成 `追踪/时间线/` 派生视图。`active_rules` 的事实分 `confirmed / inferred / assumed` 三级，`assumed` 禁止进入正文。
+4. 调用 `novel-creator-pro:context-agent` 生成五段写作任务书，写入 `摘要/chapter_NNN_taskbook.md`；返回 blocker 时先补细纲或设定。
+5. 回答 9 问并运行 `novel_creation_promax/scripts/pre_write_check.py`；存在 critical `unknown_facts` 或 critical `assumed_facts` 时直接阻断。
+6. 按 rule_stack 和任务书组装场景写作卡。
+7. 写 Pass 1 剧情稿。
+8. 运行 `novel_creation_promax/scripts/writing_gate.py`。
+9. 写 Pass 2 去AI稿。
+10. 先用 `tools/review_result.py target --ensure-revision --with-basis` 取正文哈希、revision 和审稿依据，调用 `novel-creator-pro:reviewer` 产出带 `target`、`basis`、`expected_versions` 和 `source_refs` 的 `摘要/chapter_NNN_review.json`，再用 `validate` 校验并 `render` 人读报告。
+11. `post` 自动提取 `素材/truth_delta_candidates_chNNN.json|md`，先审查候选事实，再补齐 `摘要/chapter_NNN_truth_delta.json`。
+12. 运行 `novel_creation_promax/scripts/post_write_audit.py`；第 1-3 章同时运行 `tools/opening_score.py`。
+13. 运行字数归一化、truth delta、风格校准和人物一致性检查。
+14. 生成章节摘要和 chapter passport，回填 `novel-memory`、真相文件和 `novel_state.json`；同时重建 `追踪/情绪账.md`。
+15. 所有必需检查通过后生成 `素材/commits/chapter_NNN.commit.json`，用 SHA-256 绑定正文、passport、audit、truth delta、review 和检查报告；后续章节门禁会校验这条提交记录。
 
 推荐命令：
 
@@ -150,7 +153,7 @@ python tools/knowledge_search.py "高压 对话 张力" --limit 8 --backend lexi
 python tools/knowledge_search.py "高压 对话 张力" --limit 8 --backend tfidf
 ```
 
-索引位于 `novel_output/_workspace/index/knowledge_index.sqlite3`，只作为可重建的检索读模型；原始 Markdown/JSON 仍是唯一真源。章节 `knowledge_pack` 会自动附带 `retrieval` 结果，默认使用词法检索，也可在 `novel_state.json` 设置 `retrieval_backend: "tfidf"`。
+索引位于 `novel_output/_workspace/index/knowledge_index.sqlite3`，只作为可重建的检索读模型；原始 Markdown/JSON 仍是唯一真源。章节 `knowledge_pack` 会自动附带 `retrieval` 结果，默认使用 BM25 并按选中路由的技法目录加权，也可在 `novel_state.json` 设置 `retrieval_backend: "lexical" | "tfidf"`。
 
 张力曲线契约：在项目 `novel_state.json` 中启用后，章节摘要的 `chapter_metrics.tension_curve` 使用 1-10 数值数组；quality 和 commit 阶段会要求满足峰值、点数和结尾释放规则。
 
@@ -169,6 +172,28 @@ python tools/validate_contracts.py --novel-dir "{小说目录}" --chapter N
 
 `post` 还会先运行 `story_truth_manager.py extract-delta`。如果正文出现人物状态、关系、地点、势力、资源、伏笔等疑似变化，会写入 `truth_delta.auto_extraction`，并把 `review_status` 设为 `needs_review`。必须审查 `素材/truth_delta_candidates_chNNN.md`，把属实项写入 `chapter_observations/proposed_updates`，再把 `auto_extraction.review_status` 改为 `reviewed` 并填写 `review_note`；否则 truth delta 校验不通过。
 
+## 单一写者与状态一致性
+
+只有以下脚本能写状态文件：
+
+- `write_pipeline.py`：passport、`novel_state.json`、commit
+- `project_bootstrap_pipeline.py`：立项门禁与 `novel_state.workflow_gate`
+- `story_truth_manager.py`：真相文件与 truth delta
+
+skill、子代理和域包只能读；`guard_runtime_write.py` 会拦截直接写入。`verify_project_integrity.py` 负责交叉校验：
+
+- `resume_point` / `novel_state.chapters[].workflow` / `passport.workflow` 三者一致
+- commit 必须绑定 `chapter` / `passport` / `audit` / `truth_delta` 四类产物
+- commit 中所有产物的 SHA-256 必须与磁盘一致
+- review 的 `target.sha256` 必须与正文一致；`stale` / `blocked` / `invalid` 不得存在 accepted commit
+- `rule_stack.write_ready=false`、存在 critical 未知事实或 critical `assumed_facts` 时，正文不得存在
+
+交付前运行：
+
+```bash
+python3 tools/verify_project_integrity.py --novel-dir "{小说目录}" --json --strict
+```
+
 ## 失败处理
 
 | 失败项 | 处理 |
@@ -180,3 +205,4 @@ python tools/validate_contracts.py --novel-dir "{小说目录}" --chapter N
 | 风格漂移 | 参照 style DNA 修局部语感 |
 | OOC 风险 | 回看人物档案，修动机和声纹 |
 | 记忆回填失败 | 不推进下一章，先修摘要或 schema |
+| 知识包缺失 | 默认 warning；`knowledge_gate=strict` 或 `--strict-knowledge` 时阻断，先补文件或移除失效路由 |

@@ -17,13 +17,13 @@
 
 | 组件 | 责任 | 不负责 |
 |---|---|---|
-| `SKILL.md` | 触发、导航、最小工作流说明 | 大量规则细节 |
+| 路由技能 `skills/novel-creator/SKILL.md` | 触发、导航、最小工作流说明 | 大量规则细节 |
 | `MODE_REGISTRY.md` | 功能编号和模式唯一真源 | 具体写作技巧 |
 | `references/orchestrator.md` | 阶段、门禁、调用顺序 | 知识库内容本身 |
 | `references/trigger-rules.md` | 题材/技巧/审稿/连贯性触发 | 模式编号 |
 | `references/knowledge-pack-workflow.md` | 每章知识包组装 | 长篇记忆 CRUD |
-| `novel-memory-pro/` | 风格、人物、剧情、上下文、历史记忆 | 正文创作 |
-| `review-skill/` | LLM 深度审稿 | 硬性自动审计 |
+| `skills/novel-memory/` | 风格、人物、剧情、上下文、历史记忆 | 正文创作 |
+| `skills/novel-review/` | LLM 深度审稿 | 硬性自动审计 |
 | `scripts/` | 可执行门禁和确定性工具 | 创意判断 |
 | `core/` | 路径、JSON、passport、章节/场景状态机、平台档案、故事索引、revision 控制、知识路由、项目注册表等共享确定性能力 | CLI 交互和业务流程编排 |
 | `knowledge_base/` | 题材、技巧、质量、平台、项目知识 | 临时草稿缓存 |
@@ -35,7 +35,7 @@
   ↓
 MODE_REGISTRY.md 选择模式
   ↓
-SKILL.md 导航到对应 reference / script
+路由技能导航到对应 reference / script
   ↓
 知识库 + 记忆包 + 项目文件
   ↓
@@ -45,7 +45,7 @@ SKILL.md 导航到对应 reference / script
   ↓
 脚本审计与 passport 记录
   ↓
-novel_state.json + novel-memory-pro + knowledge_base/80_Projects
+novel_state.json + novel-memory + knowledge_base/80_Projects
 ```
 
 ## 正文写作闭环
@@ -90,16 +90,16 @@ memory_manager.py sync-chapter
 | 数据访问层级 | `docs/DATA_ACCESS_LEVELS.md` |
 | 章节流水线状态 | `摘要/chapter_NNN_passport.json` |
 | 项目状态 | `novel_state.json`，逐步迁移至 `core/project_state.py` 定义的 v2 结构 |
-| 长篇记忆 | `novel-memory-pro/` |
+| 长篇记忆 | `skills/novel-memory/` |
 | 查询读模型 | `novel_output/_workspace/index/story_index.sqlite3`，由源文件重建，不是事实真源 |
 | 知识检索读模型 | `novel_output/_workspace/index/knowledge_index.sqlite3`，由 `knowledge_base/` 重建，不保存唯一事实 |
 | 用户偏好/纠正 | `.claude/memory/` |
 
 ## 维护原则
 
-- 新功能先登记到 `MODE_REGISTRY.md`，再写入 `SKILL.md`。
+- 新功能先登记到 `MODE_REGISTRY.md`，再写入 `skills/novel-creator/SKILL.md`。
 - 新脚本必须能从项目根目录执行。
-- 新质量规则优先进入脚本或知识库，不直接堆到 `SKILL.md`。
+- 新质量规则优先进入脚本或知识库，不直接堆到路由技能。
 - CLI、Dashboard、发布脚本共享路径/章节/passport 逻辑时，优先调用 `novel_creation_promax/core/`，不要复制正则。
 - 用户可控的平台名和小说目录必须通过 `core.paths.get_novel_dir` 解析，禁止直接拼接路径。
 - 每章状态以 chapter passport 为准；summary 和 novel_state 只做摘要索引或兼容读取。

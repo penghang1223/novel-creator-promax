@@ -32,12 +32,21 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from novel_creation_promax.core import thresholds as T  # noqa: E402
 from novel_creation_promax.core.roots import workspace_root  # noqa: E402
 
 TRUTH_DIR_NAME = "真相文件"
-WORD_COUNT_MIN = 2800
-WORD_COUNT_MAX = 3200
-WORD_COUNT_TARGET = 3000
+WORD_COUNT_MIN = T.WORD_COUNT_MIN
+WORD_COUNT_MAX = T.WORD_COUNT_MAX
+WORD_COUNT_TARGET = T.WORD_COUNT_TARGET
+
+EVIDENCE_LEVELS = ("confirmed", "inferred", "assumed")
+EVIDENCE_POLICY = {
+    "levels": list(EVIDENCE_LEVELS),
+    "confirmed": "来自真相文件、细纲或上一章正文",
+    "inferred": "来自题材惯例或风格 DNA，必须能说明依据",
+    "assumed": "模型猜测，禁止进入正文",
+}
 
 PLACEHOLDERS = [
     "TODO",
@@ -196,6 +205,17 @@ def truth_templates(title: str) -> dict[str, dict[str, Any]]:
                         "emotion": "待填写",
                         "assets": ["待填写"],
                     },
+                    "knowledge_boundary": [],
+                    "secrets": [],
+                    "power_ladder": [
+                        {
+                            "level": "当前层级",
+                            "abilities": [],
+                            "cost": "",
+                            "obtained_chapter": 0,
+                            "cannot_beat": [],
+                        }
+                    ],
                 }
             ],
         ),
@@ -242,6 +262,9 @@ def truth_templates(title: str) -> dict[str, dict[str, Any]]:
                     "evidence_chain": ["证据、证人、文件、数据、物品或谣言"],
                     "affected_entities": ["char_001"],
                     "debts": ["后续必须偿还的剧情债"],
+                    "reader_known": False,
+                    "reveal_status": "未揭示",
+                    "reveal_chapter": None,
                 }
             ],
         ),
@@ -285,6 +308,9 @@ def truth_templates(title: str) -> dict[str, dict[str, Any]]:
                     "status": "planned",
                     "linked_entities": ["char_001"],
                     "risk_if_forgotten": "忘记会造成的设定漂移或剧情断裂",
+                    "reader_known": True,
+                    "reveal_status": "未揭示",
+                    "reveal_chapter": None,
                 }
             ],
         ),
@@ -400,6 +426,234 @@ def collect_records(novel_dir: Path) -> dict[str, list[dict[str, Any]]]:
     return records
 
 
+def _critical_flag(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() not in {"false", "0", "no", "warning", "warn"}
+    return bool(value)
+
+
+def normalize_open_question(
+    raw: Any,
+    *,
+    file_name: str,
+    kind: str,
+    index: int,
+) -> dict[str, Any] | None:
+    """Normalize one truth-file open question into a blocker candidate."""
+    if isinstance(raw, str):
+        reason = raw.strip()
+        if not reason:
+            return None
+        return {
+            "id": f"{file_name}:open:{index}",
+            "file": file_name,
+            "kind": kind,
+            "entity_id": "",
+            "field": "",
+            "reason": reason,
+            "critical": True,
+            "chapters": [],
+            "source": "open_questions",
+        }
+    if not isinstance(raw, dict):
+        return None
+    reason = raw.get("reason") or raw.get("question") or raw.get("description")
+    if is_blank(reason):
+        return None
+    chapters: list[int] = []
+    raw_chapters = raw.get("chapters") or []
+    if isinstance(raw_chapters, (int, str)):
+        raw_chapters = [raw_chapters]
+    elif not isinstance(raw_chapters, list):
+        raw_chapters = []
+    for value in raw_chapters:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number >= 1:
+            chapters.append(number)
+    return {
+        "id": str(raw.get("id") or f"{file_name}:open:{index}"),
+        "file": file_name,
+        "kind": kind,
+        "entity_id": str(raw.get("entity_id") or ""),
+        "field": str(raw.get("field") or ""),
+        "reason": str(reason).strip(),
+        "critical": _critical_flag(raw.get("critical", True)),
+        "chapters": chapters,
+        "source": "open_questions",
+    }
+
+
+def collect_unknown_facts(novel_dir: Path, chapter: int) -> list[dict[str, Any]]:
+    """Collect explicit and status-based unknowns from all truth files.
+
+    ``open_questions`` is the explicit channel:
+
+    ```json
+    {"entity_id": "char_001", "field": "motivation", "reason": "...", "critical": true}
+    ```
+
+    Records with ``status: "unknown"`` are also reported. Facts scoped with
+    ``chapters`` only apply to those chapters; unscoped critical facts block
+    every chapter until resolved.
+    """
+    facts: list[dict[str, Any]] = []
+    for file_name, rule in TRUTH_FILE_RULES.items():
+        payload = load_json(truth_dir(novel_dir) / file_name, {})
+        if not isinstance(payload, dict):
+            continue
+        for index, raw in enumerate(payload.get("open_questions") or [], 1):
+            fact = normalize_open_question(
+                raw, file_name=file_name, kind=rule["kind"], index=index
+            )
+            if fact is not None and (not fact["chapters"] or chapter in fact["chapters"]):
+                facts.append(fact)
+        records = payload.get("records")
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            if str(record.get("status", "")).strip().lower() not in {"unknown", "待定"}:
+                continue
+            fact = {
+                "id": f"{file_name}:{record.get('id', '')}:status",
+                "file": file_name,
+                "kind": rule["kind"],
+                "entity_id": str(record.get("id") or ""),
+                "field": "status",
+                "reason": str(record.get("unknown_reason") or "记录状态为 unknown"),
+                "critical": _critical_flag(record.get("critical", True)),
+                "chapters": [],
+                "source": "record_status",
+            }
+            facts.append(fact)
+    return facts
+
+
+def _reveal_fields(record: dict[str, Any], chapter: int, *, default_reader_known: bool) -> tuple[bool, str, int | None, bool]:
+    reveal_chapter: int | None = None
+    raw_chapter = record.get("reveal_chapter")
+    if raw_chapter is not None:
+        try:
+            reveal_chapter = int(raw_chapter)
+        except (TypeError, ValueError):
+            reveal_chapter = None
+    status = str(record.get("reveal_status") or "").strip()
+    if reveal_chapter is not None and reveal_chapter > chapter:
+        return False, status or "未揭示", reveal_chapter, False
+    explicit = record.get("reader_known")
+    if isinstance(explicit, bool):
+        return explicit, status or ("已揭示" if explicit else "未揭示"), reveal_chapter, status == "部分揭示"
+    if status:
+        known = status in {"已揭示", "部分揭示"}
+        return known, status, reveal_chapter, status == "部分揭示"
+    return default_reader_known, "已揭示" if default_reader_known else "未揭示", reveal_chapter, False
+
+
+def collect_truth_layers(novel_dir: Path, chapter: int) -> dict[str, Any]:
+    """Split truth records into author truth, reader-known facts and unrevealed facts.
+
+    ``events.json`` describes what happened. ``reader_known`` / ``reveal_status`` /
+    ``reveal_chapter`` decide whether the reader (and therefore characters) may
+    use it at this chapter. ``foreshadowing.json`` produces a visible hook entry
+    and an author-only payoff entry.
+    """
+    entries: list[dict[str, Any]] = []
+
+    events_payload = load_json(truth_dir(novel_dir) / "events.json", {})
+    for record in (events_payload.get("records") if isinstance(events_payload, dict) else []) or []:
+        if not isinstance(record, dict):
+            continue
+        known, status, reveal_chapter, partial = _reveal_fields(record, chapter, default_reader_known=True)
+        entries.append(
+            {
+                "type": "event",
+                "id": str(record.get("id") or ""),
+                "name": str(record.get("name") or ""),
+                "summary": str(record.get("effect") or record.get("cause") or record.get("name") or ""),
+                "reader_known": known,
+                "reveal_status": status,
+                "reveal_chapter": reveal_chapter,
+                "partial": partial,
+                "source": "events.json",
+            }
+        )
+
+    foreshadow_payload = load_json(truth_dir(novel_dir) / "foreshadowing.json", {})
+    for record in (foreshadow_payload.get("records") if isinstance(foreshadow_payload, dict) else []) or []:
+        if not isinstance(record, dict):
+            continue
+        planted = record.get("plant_chapter")
+        try:
+            planted_chapter = int(planted) if planted is not None else None
+        except (TypeError, ValueError):
+            planted_chapter = None
+        hook_known = planted_chapter is None or planted_chapter <= chapter
+        entries.append(
+            {
+                "type": "foreshadowing_hook",
+                "id": str(record.get("id") or ""),
+                "name": str(record.get("id") or ""),
+                "summary": str(record.get("content") or ""),
+                "reader_known": hook_known,
+                "reveal_status": "已埋" if hook_known else "未埋",
+                "reveal_chapter": planted_chapter,
+                "partial": False,
+                "source": "foreshadowing.json",
+            }
+        )
+        status = str(record.get("status") or "").strip()
+        if status not in {"resolved", "已回收", "已过期", "放弃"}:
+            entries.append(
+                {
+                    "type": "foreshadowing_payoff",
+                    "id": str(record.get("id") or ""),
+                    "name": str(record.get("id") or ""),
+                    "summary": str(record.get("payoff_plan") or ""),
+                    "reader_known": False,
+                    "reveal_status": str(record.get("reveal_status") or "未揭示"),
+                    "reveal_chapter": None,
+                    "partial": False,
+                    "source": "foreshadowing.json",
+                }
+            )
+
+    characters_payload = load_json(truth_dir(novel_dir) / "characters.json", {})
+    character_knowledge: dict[str, Any] = {}
+    for record in (characters_payload.get("records") if isinstance(characters_payload, dict) else []) or []:
+        if not isinstance(record, dict):
+            continue
+        identity = str(record.get("id") or record.get("name") or "")
+        if not identity:
+            continue
+        character_knowledge[identity] = {
+            "name": str(record.get("name") or identity),
+            "knows": [str(item) for item in (record.get("knowledge_boundary") or []) if str(item).strip()],
+            "author_only": [str(item) for item in (record.get("secrets") or []) if str(item).strip()],
+            "power_ladder": [
+                dict(item) for item in (record.get("power_ladder") or []) if isinstance(item, dict)
+            ],
+        }
+
+    reader_known = [item for item in entries if item["reader_known"]]
+    unrevealed = [item for item in entries if not item["reader_known"]]
+    return {
+        "author_truth": entries,
+        "reader_known": reader_known,
+        "unrevealed_facts": unrevealed,
+        "character_knowledge": character_knowledge,
+        "stats": {
+            "author_truth": len(entries),
+            "reader_known": len(reader_known),
+            "unrevealed": len(unrevealed),
+            "characters": len(character_knowledge),
+        },
+    }
+
+
 def compact(value: Any, max_len: int = 220) -> str:
     text = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
     text = re.sub(r"\s+", " ", text).strip()
@@ -449,6 +703,7 @@ def compile_rule_stack(novel_dir: Path, chapter: int, title: str = "") -> dict[s
                         "motivation": character.get("motivation"),
                         "speech_style": character.get("speech_style"),
                         "behavior_rules": character.get("behavior_rules"),
+                        "power_ladder": character.get("power_ladder"),
                     },
                     520,
                 ),
@@ -495,6 +750,38 @@ def compile_rule_stack(novel_dir: Path, chapter: int, title: str = "") -> dict[s
             }
         )
 
+    unknown_facts = collect_unknown_facts(novel_dir, chapter)
+    for fact in unknown_facts:
+        fact.setdefault("evidence_level", "assumed")
+    critical_unknown = [item for item in unknown_facts if item.get("critical")]
+    assumed_facts = [
+        item
+        for item in unknown_facts
+        if item.get("evidence_level") == "assumed" and item.get("critical")
+    ]
+    for item in active_rules:
+        item.setdefault("evidence_level", "confirmed")
+    truth_layers = collect_truth_layers(novel_dir, chapter)
+    must_check = [
+        "本章谁出现，逐一核对 characters.json 的动机、声纹、行为边界",
+        "本章发生在哪些地点，核对 locations.json 的通勤、消费、权限",
+        "本章涉及哪些势力，核对 factions.json 的资源与行动成本",
+        "本章新增事实必须写入 chapter truth delta，不能只留在正文里",
+    ]
+    if unknown_facts:
+        must_check.append(
+            f"未知事实：{len(unknown_facts)} 条，其中 critical {len(critical_unknown)} 条；"
+            "critical 未清空前禁止写正文"
+        )
+    if assumed_facts:
+        must_check.append(
+            f"假设事实：{len(assumed_facts)} 条 critical assumed；assumed 禁止进入正文"
+        )
+    if truth_layers["unrevealed_facts"]:
+        must_check.append(
+            f"未揭示事实：{len(truth_layers['unrevealed_facts'])} 条；"
+            "角色只能使用 reader_known 和 character_knowledge，不能把作者真相写成角色已知"
+        )
     return {
         "schema_version": "1.0",
         "generated_at": now_iso(),
@@ -512,12 +799,13 @@ def compile_rule_stack(novel_dir: Path, chapter: int, title: str = "") -> dict[s
             "scene_count": "5-6",
             "scene_size": "450-650 中文字符",
         },
-        "must_check_before_writing": [
-            "本章谁出现，逐一核对 characters.json 的动机、声纹、行为边界",
-            "本章发生在哪些地点，核对 locations.json 的通勤、消费、权限",
-            "本章涉及哪些势力，核对 factions.json 的资源与行动成本",
-            "本章新增事实必须写入 chapter truth delta，不能只留在正文里",
-        ],
+        "unknown_facts": unknown_facts,
+        "assumed_facts": assumed_facts,
+        "evidence_policy": dict(EVIDENCE_POLICY),
+        "truth_layers": truth_layers,
+        "write_ready": not critical_unknown and not assumed_facts,
+        "blockers": critical_unknown,
+        "must_check_before_writing": must_check,
     }
 
 
@@ -533,11 +821,149 @@ def write_truth_brief(rule_stack: dict[str, Any], output: Path) -> None:
     ]
     for item in rule_stack.get("active_rules", []):
         lines.append(f"- [{item.get('level')}] {item.get('id')}: {item.get('rule')}")
+    lines.extend(["", "## 证据分级", ""])
+    lines.append("- confirmed：真相文件 / 细纲 / 上一章正文，可直接使用")
+    lines.append("- inferred：题材惯例 / 风格 DNA，正文中必须能说明依据")
+    lines.append("- assumed：模型猜测，禁止进入正文")
+    assumed = rule_stack.get("assumed_facts") or []
+    if assumed:
+        lines.append("")
+        lines.append("### 假设事实（写前必须补齐）")
+        for item in assumed:
+            lines.append(f"- {item.get('file')}: {item.get('reason')}")
+    lines.extend(["", "## 未知事实（写前必须处理）", ""])
+    unknown_facts = rule_stack.get("unknown_facts") or []
+    if not unknown_facts:
+        lines.append("- 无")
+    else:
+        for fact in unknown_facts:
+            flag = "CRITICAL" if fact.get("critical") else "warning"
+            entity = f" {fact.get('entity_id')}" if fact.get("entity_id") else ""
+            field = f".{fact.get('field')}" if fact.get("field") else ""
+            lines.append(
+                f"- [{flag}] {fact.get('file')}{entity}{field}: {fact.get('reason')}"
+            )
+    layers = rule_stack.get("truth_layers") or {}
+    lines.extend(["", "## 作者真相（不得让角色直接引用）", ""])
+    author_truth = layers.get("author_truth") or []
+    if not author_truth:
+        lines.append("- 无")
+    for item in author_truth[:16]:
+        known = "读者已知" if item.get("reader_known") else "未揭示"
+        lines.append(
+            f"- [{known}] {item.get('type')}:{item.get('id')} {item.get('summary')}"
+        )
+    lines.extend(["", "## 读者已知", ""])
+    reader_known = layers.get("reader_known") or []
+    if not reader_known:
+        lines.append("- 无")
+    for item in reader_known[:16]:
+        lines.append(f"- {item.get('type')}:{item.get('id')} {item.get('summary')}")
+    lines.extend(["", "## 未揭示事实（禁止角色引用）", ""])
+    unrevealed = layers.get("unrevealed_facts") or []
+    if not unrevealed:
+        lines.append("- 无")
+    for item in unrevealed[:16]:
+        lines.append(f"- {item.get('type')}:{item.get('id')} {item.get('summary')}")
     lines.extend(["", "## 写前自检", ""])
     for item in rule_stack.get("must_check_before_writing", []):
         lines.append(f"- {item}")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _render_truth_layer(
+    title: str,
+    entries: list[dict[str, Any]],
+    *,
+    empty_text: str,
+) -> str:
+    lines = [
+        f"# {title}",
+        "",
+        "> 自动生成，禁止手改；源数据是 `设定/真相文件/`。",
+        "",
+    ]
+    if not entries:
+        lines.append(empty_text)
+        return "\n".join(lines) + "\n"
+    for item in entries:
+        kind = str(item.get("type") or "")
+        identity = str(item.get("id") or "")
+        summary = str(item.get("summary") or "")
+        lines.append(f"- **{kind}:{identity}** {summary}")
+        if item.get("reveal_status"):
+            lines.append(f"  - 状态：{item['reveal_status']}")
+        if item.get("reveal_chapter") is not None:
+            lines.append(f"  - 章节：{item['reveal_chapter']}")
+        if item.get("partial"):
+            lines.append("  - 注意：仅部分揭示")
+    return "\n".join(lines) + "\n"
+
+
+def write_power_ladder_view(rule_stack: dict[str, Any], novel_dir: Path) -> Path:
+    """Write the derived power/ability ladder ledger."""
+    layers = rule_stack.get("truth_layers") or {}
+    characters = layers.get("character_knowledge") or {}
+    path = novel_dir / "追踪" / "战力阶梯.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# 战力阶梯",
+        "",
+        "> 自动生成，禁止手改；源数据是 `设定/真相文件/characters.json`。",
+        "",
+    ]
+    if not characters:
+        lines.append("- 暂无角色战力记录。")
+    for identity, character in characters.items():
+        ladder = character.get("power_ladder") or []
+        if not ladder:
+            continue
+        lines.append(f"## {character.get('name') or identity}")
+        lines.append("")
+        lines.append("| 层级 | 能力 | 代价 | 获得章 | 明确打不过谁 |")
+        lines.append("|---|---|---|---|---|")
+        for item in ladder:
+            abilities = "、".join(str(value) for value in (item.get("abilities") or []) if str(value).strip())
+            cannot = "、".join(str(value) for value in (item.get("cannot_beat") or []) if str(value).strip())
+            lines.append(
+                "| {level} | {abilities} | {cost} | {chapter} | {cannot} |".format(
+                    level=item.get("level", ""),
+                    abilities=abilities or "—",
+                    cost=item.get("cost", "") or "—",
+                    chapter=item.get("obtained_chapter", ""),
+                    cannot=cannot or "—",
+                )
+            )
+        lines.append("")
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return path
+
+
+def write_truth_views(rule_stack: dict[str, Any], novel_dir: Path) -> list[Path]:
+    """Write derived author-truth and reader-known Markdown views."""
+    layers = rule_stack.get("truth_layers") or {}
+    view_dir = novel_dir / "追踪" / "时间线"
+    view_dir.mkdir(parents=True, exist_ok=True)
+    author_path = view_dir / "作者真相.md"
+    reader_path = view_dir / "读者已知.md"
+    author_path.write_text(
+        _render_truth_layer(
+            f"作者真相 — 第{int(rule_stack.get('chapter', 0)):03d}章",
+            layers.get("author_truth") or [],
+            empty_text="- 无作者真相记录。",
+        ),
+        encoding="utf-8",
+    )
+    reader_path.write_text(
+        _render_truth_layer(
+            f"读者已知 — 第{int(rule_stack.get('chapter', 0)):03d}章",
+            layers.get("reader_known") or [],
+            empty_text="- 读者暂无已确认事实。",
+        ),
+        encoding="utf-8",
+    )
+    return [author_path, reader_path]
 
 
 def delta_template(chapter: int, title: str = "") -> dict[str, Any]:
@@ -1202,8 +1628,33 @@ def main() -> int:
         brief = resolve_path(args.brief_output) if args.brief_output else novel_dir / "素材" / f"chapter_{args.chapter:03d}_truth_brief.md"
         save_json(output, stack)
         write_truth_brief(stack, brief)
+        views = write_truth_views(stack, novel_dir)
+        power_view = write_power_ladder_view(stack, novel_dir)
+        views.append(power_view)
         print(f"[OK] rule_stack: {rel(output, novel_dir)}")
         print(f"[OK] truth_brief: {rel(brief, novel_dir)}")
+        for view in views:
+            print(f"[OK] truth view: {rel(view, novel_dir)}")
+        layer_stats = stack.get("truth_layers", {}).get("stats", {})
+        print(
+            f"[OK] truth layers: author={layer_stats.get('author_truth', 0)} "
+            f"reader={layer_stats.get('reader_known', 0)} "
+            f"unrevealed={layer_stats.get('unrevealed', 0)}"
+        )
+        unknown = stack.get("unknown_facts") or []
+        critical = [item for item in unknown if item.get("critical")]
+        if unknown:
+            print(
+                f"[WARN] 未知事实 {len(unknown)} 条，critical {len(critical)} 条；"
+                "critical 未清空前 pre_write_check 会阻断。",
+                file=sys.stderr,
+            )
+            for item in critical:
+                print(
+                    f"  - {item.get('file')} {item.get('entity_id', '')} "
+                    f"{item.get('field', '')}: {item.get('reason')}",
+                    file=sys.stderr,
+                )
         return 0
 
     if args.command == "delta-template":

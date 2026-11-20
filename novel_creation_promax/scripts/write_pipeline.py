@@ -11,6 +11,7 @@ all  = pre + post（适合章节文件已存在时）
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -52,18 +53,22 @@ from novel_creation_promax.core.chapter_commit import (
 )
 from novel_creation_promax.core.chapter_workflow import chapter_lock, transition
 from novel_creation_promax.core.contracts import save_contract_report, validate_chapter_contracts
+from novel_creation_promax.core.dashboard import write_dashboards
 from novel_creation_promax.core.gate import verify_bootstrap_gate
-from novel_creation_promax.core.knowledge_routes import build_knowledge_pack, save_knowledge_pack
+from novel_creation_promax.core.knowledge_routes import build_and_save_chapter_pack
 from novel_creation_promax.core.passport import previous_chapter_audited
 from novel_creation_promax.core.paths import find_memory_dir
 from novel_creation_promax.core.run_ledger import record_subprocess
 from novel_creation_promax.core.scene_passport import initialize_scene_plan
 from novel_creation_promax.core.quality_profiles import QUALITY_MODES, quality_profile, quality_review_path
+from novel_creation_promax.core.review_result import review_gate, review_path as chapter_review_path
+from novel_creation_promax.core.revision_control import ensure_current_revision
 from novel_creation_promax.core.roots import workspace_root
 from novel_creation_promax.core.tension_curve import load_tension_contract, validate_chapter_tension
 
 SCRIPTS_DIR = PROJECT_ROOT / "novel_creation_promax" / "scripts"
-MEMORY_SCRIPT = PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
+MEMORY_SCRIPTS_DIR = PROJECT_ROOT / "skills" / "novel-memory" / "scripts"
+MEMORY_SCRIPT = MEMORY_SCRIPTS_DIR / "memory_manager.py"
 TRUTH_SCRIPT = SCRIPTS_DIR / "story_truth_manager.py"
 PASS_THRESHOLD = 70
 POST_PHASES = ("audit", "truth", "quality", "memory", "commit")
@@ -270,30 +275,47 @@ def create_truth_delta_template(novel_dir: Path, chapter: int, title: str, passp
     return result["returncode"] == 0
 
 
-def build_and_save_knowledge_pack(novel_dir: Path, chapter: int, title: str, passport: dict[str, Any]) -> bool:
-    pack_path = novel_dir / "摘要" / f"chapter_{chapter:03d}_knowledge_pack.json"
+def build_and_save_knowledge_pack(
+    novel_dir: Path,
+    chapter: int,
+    title: str,
+    passport: dict[str, Any],
+    *,
+    strict: bool = False,
+) -> bool:
+    state = load_json(novel_dir / "novel_state.json", {})
+    strict = strict or (isinstance(state, dict) and state.get("knowledge_gate") == "strict")
     try:
-        pack = build_knowledge_pack(
+        result = build_and_save_chapter_pack(
             project_root=workspace_root(),
             novel_dir=novel_dir,
             chapter=chapter,
             title=title,
+            strict=strict,
         )
-        save_knowledge_pack(pack, pack_path)
     except Exception as exc:
         passport["pipeline"]["knowledge_pack"] = "fail"
         print(f"[FAIL] 生成知识包失败: {exc}", file=sys.stderr)
         return False
 
-    missing_required = [item["path"] for item in pack.get("required", []) if item.get("path") and not item.get("exists")]
-    passport["pipeline"]["knowledge_pack"] = "warning" if missing_required else "pass"
-    passport["inputs"]["knowledge_pack"] = rel(pack_path, novel_dir)
-    print(f"[OK] 已生成章节知识包: {pack_path}")
-    if missing_required:
-        print("[WARN] 知识包必读项未全部落到具体文件/目录：")
-        for item in missing_required:
+    passport["inputs"]["knowledge_pack"] = rel(result["pack_path"], novel_dir)
+    passport["knowledge_pack_missing"] = {
+        "required": result["missing_required"],
+        "selected": result["missing_selected"],
+    }
+    passport["pipeline"]["knowledge_pack"] = result["status"]
+    print(f"[OK] 已生成章节知识包: {result['pack_path']}")
+
+    missing = [*result["missing_required"], *result["missing_selected"]]
+    if missing:
+        print(
+            "[FAIL] 知识包存在缺失项（strict 模式阻断）："
+            if result["status"] == "fail"
+            else "[WARN] 知识包存在缺失项（strict 模式下会阻断）："
+        )
+        for item in missing:
             print(f"  - {item}")
-    return True
+    return result["status"] != "fail"
 
 
 def validate_and_apply_truth_delta(
@@ -642,7 +664,13 @@ def stage_pre(args: argparse.Namespace) -> bool:
         status="running",
         next_action="pre",
     )
-    knowledge_ok = build_and_save_knowledge_pack(novel_dir, chapter, title, passport)
+    knowledge_ok = build_and_save_knowledge_pack(
+        novel_dir,
+        chapter,
+        title,
+        passport,
+        strict=getattr(args, "strict_knowledge", False),
+    )
     truth_ok = compile_truth_inputs(novel_dir, chapter, title, passport)
     delta_template_ok = create_truth_delta_template(novel_dir, chapter, title, passport)
 
@@ -811,7 +839,33 @@ def post_audit_phase(args: argparse.Namespace) -> bool:
     passport["inputs"]["audit_report"] = rel(audit_report, novel_dir)
 
     normalizer_ok = run_normalizer(novel_dir, chapter, title, chapter_file, passport)
-    ok = gate_result["returncode"] == 0 and audit_result["returncode"] == 0 and normalizer_ok
+
+    opening_ok = True
+    if chapter <= 3:
+        opening_report = novel_dir / "素材" / f"opening_score_ch{chapter:03d}.json"
+        opening_result = run_command(
+            [sys.executable, str(PROJECT_ROOT / "tools" / "opening_score.py"), str(chapter_file), "--json"],
+            "开篇评分",
+        )
+        if opening_result["returncode"] == 0:
+            try:
+                opening_payload = json.loads(opening_result["stdout"])
+                score = int(opening_payload.get("total", 0))
+            except (ValueError, TypeError, json.JSONDecodeError):
+                opening_payload = {}
+                score = 0
+            save_json(opening_report, opening_payload)
+            passport["pipeline"]["opening_score"] = "pass" if score >= 70 else "warning"
+            passport["inputs"]["opening_score_report"] = rel(opening_report, novel_dir)
+            if score < 70:
+                print(
+                    f"[WARN] 开篇评分 {score}/100 低于 70，建议按开篇 100 分卡重构前 300 字/第一章。",
+                    file=sys.stderr,
+                )
+        else:
+            passport["pipeline"]["opening_score"] = "skipped"
+
+    ok = gate_result["returncode"] == 0 and audit_result["returncode"] == 0 and normalizer_ok and opening_ok
     save_workflow_checkpoint(
         novel_dir, chapter, passport,
         stage="audit", status="pass" if ok else "blocked",
@@ -869,7 +923,7 @@ def post_quality_phase(args: argparse.Namespace) -> bool:
     if style_dna:
         style_report = novel_dir / "素材" / f"style_ch{chapter:03d}.json"
         style_result = run_command(
-            [sys.executable, str(SCRIPTS_DIR / "style_calibrator.py"), "--input", str(chapter_file), "--style-dna", str(style_dna), "--output", str(style_report)],
+            [sys.executable, str(MEMORY_SCRIPTS_DIR / "style_calibrator.py"), "--input", str(chapter_file), "--style-dna", str(style_dna), "--output", str(style_report)],
             "风格校准",
         )
         passport["pipeline"]["style_calibration"] = style_result["status"]
@@ -884,7 +938,7 @@ def post_quality_phase(args: argparse.Namespace) -> bool:
     if characters_file:
         character_report = novel_dir / "素材" / f"character_ch{chapter:03d}.json"
         character_result = run_command(
-            [sys.executable, str(SCRIPTS_DIR / "character_consistency_checker.py"), "--input", str(chapter_file), "--characters", str(characters_file), "--output", str(character_report)],
+            [sys.executable, str(MEMORY_SCRIPTS_DIR / "character_consistency_checker.py"), "--input", str(chapter_file), "--characters", str(characters_file), "--output", str(character_report)],
             "人物一致性检查",
         )
         passport["pipeline"]["character_consistency"] = character_result["status"]
@@ -918,6 +972,43 @@ def post_quality_phase(args: argparse.Namespace) -> bool:
     if review_path.exists():
         passport["inputs"]["quality_review"] = rel(review_path, novel_dir)
 
+    # 结构化审稿门禁：文件存在就必须被遵守；tribunal 模式要求必须有。
+    structured_review = review_gate(novel_dir, chapter)
+    if structured_review["status"] == "missing":
+        passport["pipeline"]["review_result"] = "missing"
+        if mode == "tribunal":
+            review_result_ok = False
+            print(
+                f"[BLOCKED] {mode} 模式要求结构化审稿结果: {chapter_review_path(novel_dir, chapter)}",
+                file=sys.stderr,
+            )
+        else:
+            review_result_ok = True
+    else:
+        review_result_ok = structured_review["status"] == "pass"
+        passport["pipeline"]["review_result"] = "pass" if review_result_ok else "fail"
+        passport["inputs"]["review_result"] = rel(structured_review["path"], novel_dir)
+        if structured_review["status"] == "invalid":
+            print("[BLOCKED] 审稿结果契约无效:", file=sys.stderr)
+            for error in structured_review["report"]["errors"]:
+                print(f"  - {error}", file=sys.stderr)
+        elif structured_review["status"] == "blocked":
+            print(
+                f"[BLOCKED] 审稿存在 {structured_review['blocking_count']} 个 blocking issue:",
+                file=sys.stderr,
+            )
+            for issue in structured_review["issues"]:
+                if issue["severity"] != "blocker":
+                    continue
+                print(f"  - {issue['id']} [{issue['dimension']}] {issue['evidence']}", file=sys.stderr)
+                if issue["repair"]:
+                    print(f"    修复: {issue['repair']}", file=sys.stderr)
+        elif structured_review["status"] == "stale":
+            print("[BLOCKED] 审稿结果已过期：正文 SHA-256 与审稿记录不一致。", file=sys.stderr)
+            for error in structured_review["report"]["errors"]:
+                print(f"  - {error}", file=sys.stderr)
+            print("  请重新调用 reviewer，不要复用旧审稿。", file=sys.stderr)
+
     tension_report = validate_chapter_tension(novel_dir, chapter)
     passport["pipeline"]["tension_curve"] = tension_report["status"]
     passport["inputs"]["tension_report"] = rel(Path(tension_report["report_path"]), novel_dir)
@@ -933,12 +1024,12 @@ def post_quality_phase(args: argparse.Namespace) -> bool:
     if not contract_ok:
         print(f"[BLOCKED] JSON 契约未通过: {', '.join(contract_report['errors'])}", file=sys.stderr)
 
-    ok = style_ok and character_ok and review_ok and tension_ok and contract_ok
+    ok = style_ok and character_ok and review_ok and review_result_ok and tension_ok and contract_ok
     save_workflow_checkpoint(
         novel_dir, chapter, passport,
         stage="quality", status="pass" if ok else "blocked",
         next_action="post --phase memory" if ok else "post --phase quality",
-        error="风格或人物一致性检查失败" if not ok else "",
+        error="风格、人物一致性或结构化审稿检查失败" if not ok else "",
     )
     return ok
 
@@ -962,6 +1053,22 @@ def post_memory_phase(args: argparse.Namespace) -> bool:
         passport["pipeline"]["memory_sync"] = "pending"
         print(f"未找到章节摘要，记忆回填保持 pending: {summary_file}")
         ok = True
+
+    ledger_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "tools" / "emotion_ledger.py"),
+            "sync",
+            "--novel-dir",
+            str(novel_dir),
+        ],
+        "情绪账同步",
+    )
+    passport["pipeline"]["emotion_ledger"] = ledger_result["status"]
+    if (novel_dir / "追踪" / "情绪账.md").is_file():
+        passport["inputs"]["emotion_ledger"] = "追踪/情绪账.md"
+    ok = ok and ledger_result["returncode"] == 0
+
     save_workflow_checkpoint(
         novel_dir, chapter, passport,
         stage="memory", status="pass" if ok else "blocked",
@@ -969,6 +1076,19 @@ def post_memory_phase(args: argparse.Namespace) -> bool:
         error="记忆回填失败" if not ok else "",
     )
     return ok
+
+
+def refresh_dashboards_safe(novel_dir: Path) -> None:
+    """Refresh dashboards only when the book is inside the active workspace."""
+    workspace = workspace_root().resolve()
+    try:
+        Path(novel_dir).resolve().relative_to(workspace)
+    except ValueError:
+        return
+    try:
+        write_dashboards(workspace, novel_dir)
+    except (OSError, ValueError):
+        pass
 
 
 def post_commit_phase(args: argparse.Namespace) -> bool:
@@ -989,6 +1109,22 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
     )
     if passport.get("quality_mode") == "tribunal" and passport["pipeline"].get("quality_review") != "pass":
         required_ok = False
+    structured_review = review_gate(novel_dir, chapter)
+    passport["pipeline"]["review_result"] = {
+        "missing": "missing",
+        "pass": "pass",
+        "blocked": "fail",
+        "invalid": "fail",
+        "stale": "fail",
+    }.get(structured_review["status"], "missing")
+    if structured_review["status"] in {"blocked", "invalid", "stale"} or (
+        mode == "tribunal" and structured_review["status"] == "missing"
+    ):
+        required_ok = False
+        print(
+            f"[BLOCKED] 结构化审稿未通过（{structured_review['status']}），禁止 commit。",
+            file=sys.stderr,
+        )
     if load_tension_contract(novel_dir).get("enabled") and passport["pipeline"].get("tension_curve") != "pass":
         required_ok = False
     contract_report = validate_chapter_contracts(novel_dir, chapter, passport=passport)
@@ -1002,6 +1138,7 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
         required_ok = False
         print("[BLOCKED] 已启用场景 passport，但并非所有场景都通过。", file=sys.stderr)
     commit_file = chapter_commit_path(novel_dir, chapter)
+    review_artifact = chapter_review_path(novel_dir, chapter)
     commit_payload: dict[str, Any] | None = None
 
     def input_file(key: str) -> Path | None:
@@ -1014,7 +1151,33 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
     def input_file_or(key: str, fallback: Path) -> Path:
         return input_file(key) or fallback
 
+    # Build the final passport BEFORE writing the commit. The commit binds
+    # artifact hashes, so saving the passport after the commit would make the
+    # commit invalid immediately.
+    revision = ensure_current_revision(novel_dir, chapter, source="writing")
+    passport["revision"] = {
+        "revision_id": revision["revision_id"],
+        "version": revision["version"],
+        "content_hash": revision["content_hash"],
+        "source": revision["source"],
+    }
+    expected_commit_id = commit_id_for(chapter, chapter_file)
+
     if required_ok:
+        passport["commit"] = {
+            "status": "accepted",
+            "path": rel(commit_file, novel_dir),
+            "id": expected_commit_id,
+            "created_at": now_iso(),
+        }
+        passport["pipeline_result"] = "pass"
+        passport["workflow"] = transition(
+            passport.get("workflow", {}),
+            "commit",
+            "pass",
+            next_action="pre",
+        )
+        save_passport(novel_dir, chapter, passport)
         audit_file = find_audit_report(novel_dir, chapter) or novel_dir / "素材" / f"audit_ch{chapter:03d}.json"
         try:
             commit_payload = record_chapter_commit(
@@ -1031,28 +1194,31 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
                     "normalizer_report": input_file("normalizer_report"),
                     "style_report": input_file("style_report"),
                     "character_report": input_file("character_report"),
+                    "review_result": review_artifact if review_artifact.is_file() else None,
                 },
                 pipeline=passport.get("pipeline", {}),
             )
             print(f"[OK] 第{chapter}章提交记录已生成: {commit_file}")
         except (FileNotFoundError, OSError, ValueError) as exc:
-            required_ok = False
+            commit_payload = None
             print(f"[FAIL] 章节提交记录生成失败: {exc}", file=sys.stderr)
 
-    passport["commit"] = {
-        "status": "accepted" if commit_payload else "blocked",
-        "path": rel(commit_file, novel_dir),
-        "id": commit_payload.get("commit_id", "") if commit_payload else "",
-        "created_at": now_iso() if commit_payload else "",
-    }
-    passport["pipeline_result"] = "pass" if commit_payload else "fail"
-    workflow_status = "pass" if commit_payload else "blocked"
-    save_workflow_checkpoint(
-        novel_dir, chapter, passport,
-        stage="commit", status=workflow_status,
-        next_action="pre" if commit_payload else "post --phase audit",
-        error="" if commit_payload else "必需阶段未通过或提交记录生成失败",
-    )
+    if commit_payload is None:
+        passport["commit"] = {
+            "status": "blocked",
+            "path": rel(commit_file, novel_dir),
+            "id": "",
+            "created_at": "",
+        }
+        passport["pipeline_result"] = "fail"
+        passport["workflow"] = transition(
+            passport.get("workflow", {}),
+            "commit",
+            "blocked",
+            next_action="post --phase audit",
+            error="必需阶段未通过或提交记录生成失败",
+        )
+        save_passport(novel_dir, chapter, passport)
     update_novel_state(
         novel_dir,
         chapter=chapter,
@@ -1068,6 +1234,7 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
         },
         workflow_update=passport["workflow"],
     )
+    refresh_dashboards_safe(novel_dir)
     if not commit_payload:
         print("\n[INFO] 审计未通过，自动生成修复计划...")
         generate_fix_plan(novel_dir, chapter, title)
@@ -1510,7 +1677,7 @@ def stage_act_summary(novel_dir: Path, volume: int, memory_dir: Path) -> bool:
     print(f"[OK] novel_state.json 已更新卷 {volume} 摘要引用")
 
     # 同步到记忆系统
-    memory_script = PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
+    memory_script = MEMORY_SCRIPT
     if memory_script.exists() and memory_dir.exists():
         # 把卷级摘要也作为"章节"同步，chapter号用 volume*1000 标记
         sync_cmd = [
@@ -1552,6 +1719,11 @@ def main() -> int:
         help="post 阶段：all 或 audit/truth/quality/memory/commit，可单独重跑",
     )
     parser.add_argument("--allow-missing-memory", action="store_true", help="记忆包生成失败时不阻断 pre 阶段")
+    parser.add_argument(
+        "--strict-knowledge",
+        action="store_true",
+        help="知识包必读项或选中路由文件缺失时阻断 pre（也可在 novel_state.json 设置 knowledge_gate=strict）",
+    )
     parser.add_argument(
         "--override-prev-audit",
         action="store_true",

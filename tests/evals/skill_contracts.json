@@ -1,0 +1,206 @@
+{
+  "schema_version": "1.0",
+  "name": "skill-contracts",
+  "cases": [
+    {
+      "id": "all-skills-frontmatter",
+      "type": "frontmatter_glob",
+      "glob": "skills/*/SKILL.md",
+      "min_count": 11,
+      "required_keys": [
+        "name",
+        "description"
+      ]
+    },
+    {
+      "id": "all-commands-frontmatter",
+      "type": "frontmatter_glob",
+      "glob": "commands/*.md",
+      "min_count": 13,
+      "required_keys": [
+        "description"
+      ]
+    },
+    {
+      "id": "router-routes-subskills",
+      "type": "text_contract",
+      "path": "skills/novel-creator/SKILL.md",
+      "required": [
+        "skills/novel-project-planning/SKILL.md",
+        "skills/novel-memory/SKILL.md",
+        "skills/novel-review/SKILL.md",
+        "skills/novel-publish/SKILL.md",
+        "skills/novel-knowledge-ingestion/SKILL.md",
+        "references/orchestrator.md",
+        "不建立独立 skill"
+      ]
+    },
+    {
+      "id": "write-skill-step-order",
+      "type": "text_contract",
+      "path": "skills/novel-chapter-write/SKILL.md",
+      "required": [
+        "novel-creator-pro:context-agent",
+        "只依据任务书起草 Pass 1",
+        "writing_gate.py",
+        "Pass 2 去 AI 稿",
+        "novel-creator-pro:reviewer",
+        "write_pipeline.py\" post"
+      ],
+      "ordered": [
+        [
+          "write_pipeline.py pre",
+          "novel-creator-pro:context-agent"
+        ],
+        [
+          "novel-creator-pro:context-agent",
+          "只依据任务书起草 Pass 1"
+        ],
+        [
+          "只依据任务书起草 Pass 1",
+          "writing_gate.py"
+        ],
+        [
+          "writing_gate.py",
+          "Pass 2 去 AI 稿"
+        ],
+        [
+          "Pass 2 去 AI 稿",
+          "novel-creator-pro:reviewer"
+        ],
+        [
+          "novel-creator-pro:reviewer",
+          "write_pipeline.py\" post"
+        ]
+      ],
+      "forbidden": [
+        "跳过审计",
+        "跳过 9 问",
+        "免于审计"
+      ]
+    },
+    {
+      "id": "review-skill-json-first",
+      "type": "text_contract",
+      "path": "skills/novel-review/SKILL.md",
+      "required": [
+        "novel-creator-pro:reviewer",
+        "review_result.py\" save",
+        "review_result.py\" render",
+        "chapter_NNN_review.json",
+        "不得手改字段",
+        "blocker"
+      ]
+    },
+    {
+      "id": "orchestrator-stage-order",
+      "type": "text_contract",
+      "path": "novel_creation_promax/references/orchestrator.md",
+      "required": [
+        "3.5 写作任务书",
+        "5.5 结构化审稿",
+        "context-agent",
+        "reviewer",
+        "writing_gate.py",
+        "post_write_audit.py",
+        "blocking_count>0"
+      ],
+      "ordered": [
+        [
+          "3.5 写作任务书",
+          "4. PASS 1"
+        ],
+        [
+          "5.5 结构化审稿",
+          "6. 写后审计"
+        ]
+      ],
+      "forbidden": [
+        "跳过 PASS 1",
+        "跳过写后审计"
+      ]
+    },
+    {
+      "id": "command-write-matches-chapter-skill",
+      "type": "text_contract",
+      "path": "commands/write.md",
+      "required": [
+        "write_pipeline.py pre",
+        "context-agent",
+        "Pass 1 剧情稿",
+        "writing_gate.py",
+        "Pass 2 去 AI 稿",
+        "reviewer",
+        "review_result.py",
+        "write_pipeline.py post",
+        "verify_project_integrity.py"
+      ],
+      "ordered": [
+        [
+          "write_pipeline.py pre",
+          "context-agent"
+        ],
+        [
+          "context-agent",
+          "Pass 1 剧情稿"
+        ],
+        [
+          "Pass 1 剧情稿",
+          "writing_gate.py"
+        ],
+        [
+          "writing_gate.py",
+          "Pass 2 去 AI 稿"
+        ],
+        [
+          "Pass 2 去 AI 稿",
+          "reviewer"
+        ],
+        [
+          "reviewer",
+          "write_pipeline.py post"
+        ],
+        [
+          "write_pipeline.py post",
+          "verify_project_integrity.py"
+        ]
+      ],
+      "forbidden": [
+        "跳过审稿",
+        "不使用 reviewer"
+      ]
+    },
+    {
+      "id": "mode-registry-matches-latest-flow",
+      "type": "text_contract",
+      "path": "novel_creation_promax/MODE_REGISTRY.md",
+      "required": [
+        "chapter_NNN_taskbook.md",
+        "chapter_NNN_review.json",
+        "context-agent",
+        "reviewer",
+        "结构化审稿",
+        "review_result.py"
+      ],
+      "ordered": [
+        [
+          "### 5. 正文写作",
+          "### 9. 审稿评估"
+        ]
+      ]
+    },
+    {
+      "id": "commands-doc-writing-chain",
+      "type": "text_contract",
+      "path": "docs/COMMANDS.md",
+      "required": [
+        "每章链路",
+        "写作任务书",
+        "结构化审稿",
+        "reviewer",
+        "review_result.py",
+        "blocking_count > 0"
+      ]
+    }
+  ]
+}

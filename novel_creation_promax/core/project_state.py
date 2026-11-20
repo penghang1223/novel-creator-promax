@@ -39,9 +39,10 @@ def ensure_state_shape(
     normalized.setdefault("tension_contract", {"enabled": False})
     if not isinstance(normalized.get("tension_contract"), dict):
         normalized["tension_contract"] = {"enabled": False}
-    normalized.setdefault("retrieval_backend", "lexical")
-    if normalized.get("retrieval_backend") not in {"lexical", "tfidf"}:
-        normalized["retrieval_backend"] = "lexical"
+    normalized.setdefault("retrieval_backend", "bm25")
+    if normalized.get("retrieval_backend") not in {"bm25", "lexical", "tfidf"}:
+        normalized["retrieval_backend"] = "bm25"
+    normalized.setdefault("pack_id", "")
 
     for key in ("revision_history", "audit_history"):
         if not isinstance(normalized.get(key), list):

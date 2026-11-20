@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "pack_id": "zhihu-short-story",
+  "version": "1.0.0",
+  "display_name": "知乎盐选短篇",
+  "signals": {
+    "platform": "知乎盐选",
+    "genre_tags": ["短篇", "悬疑", "反转", "情感", "盐选"]
+  },
+  "capabilities": ["short_story", "twist", "emotional_payoff"],
+  "routes": {
+    "short_story": {
+      "name": "短篇结构",
+      "trigger_capabilities": ["short_story"],
+      "files": [
+        "knowledge_base/40_Writing/07_短篇与模板/短篇创作模板.md",
+        "knowledge_base/40_Writing/06_质量校验/套路预判+绕开机制.md"
+      ]
+    },
+    "high_pressure": {
+      "name": "反转与情绪兑现",
+      "trigger_capabilities": ["twist", "emotional_payoff"],
+      "files": [
+        "knowledge_base/40_Writing/04_场景与描写/潜台词与张力技法.md",
+        "knowledge_base/40_Writing/04_场景与描写/爽点设计.md"
+      ]
+    },
+    "opening": {
+      "name": "开篇",
+      "trigger_capabilities": [],
+      "files": [
+        "knowledge_base/40_Writing/01_开篇技巧/黄金三章技巧.md",
+        "knowledge_base/40_Writing/01_开篇技巧/开头钩子库.md"
+      ]
+    }
+  },
+  "pitfalls": "pitfalls.md"
+}

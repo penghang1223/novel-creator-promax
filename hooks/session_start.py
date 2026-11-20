@@ -95,6 +95,9 @@ def main() -> int:
     if preferences.is_file():
         lines.append("共享记忆: 已发现 .claude/memory/decisions/preferences.md")
 
+    rules = plugin / "novel_creation_promax" / "SKILL.md"
+    lines.append(f"规则: 小说任务前先读 {rules} 的「行为红线」。")
+
     if sys.version_info < (3, 10):
         lines.append(f"提示: Python {sys.version.split()[0]}，建议 3.10+")
 

@@ -6,7 +6,7 @@ from pathlib import Path
 # Add project root to path so we can import existing scripts
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "novel_creation_promax" / "scripts"))
-sys.path.insert(0, str(PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "skills" / "novel-memory" / "scripts"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

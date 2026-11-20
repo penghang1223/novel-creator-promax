@@ -21,7 +21,7 @@ REQUIRED_PLUGIN_FILES = (
     "skills/novel-creator/SKILL.md",
     "commands/write.md",
     "hooks/hooks.json",
-    "novel_creation_promax/SKILL.md",
+    "skills/novel-creator/SKILL.md",
     "novel_creation_promax/MODE_REGISTRY.md",
     "novel_creation_promax/scripts/write_pipeline.py",
     "knowledge_base/_ROUTES.json",
@@ -58,7 +58,7 @@ def _frontmatter_problem(path: Path, *, require_name: bool = True) -> str:
     return ""
 
 
-def inspect(workspace: Path | None = None) -> dict[str, Any]:
+def inspect(workspace: Path | None = None, *, plugin_only: bool = False) -> dict[str, Any]:
     plugin = plugin_root()
     workspace = (workspace or workspace_root()).resolve()
     checks: list[dict[str, Any]] = []
@@ -91,22 +91,25 @@ def inspect(workspace: Path | None = None) -> dict[str, Any]:
             "已安装" if found else f"未安装（仅影响{purpose}）",
         )
 
-    if workspace.is_dir():
-        add("workspace", "pass", str(workspace))
+    if plugin_only:
+        add("workspace", "pass", "plugin-only 模式：跳过工作区检查")
     else:
-        add("workspace", "fail", f"不存在: {workspace}")
+        if workspace.is_dir():
+            add("workspace", "pass", str(workspace))
+        else:
+            add("workspace", "fail", f"不存在: {workspace}")
 
-    output = workspace / "novel_output"
-    books = [
-        path
-        for path in sorted(output.glob("*/*/novel_state.json"))
-        if path.is_file()
-    ] if output.is_dir() else []
-    add("workspace:novel_output", "pass" if output.is_dir() else "warn", f"发现 {len(books)} 本书")
+        output = workspace / "novel_output"
+        books = [
+            path
+            for path in sorted(output.glob("*/*/novel_state.json"))
+            if path.is_file()
+        ] if output.is_dir() else []
+        add("workspace:novel_output", "pass" if output.is_dir() else "warn", f"发现 {len(books)} 本书")
 
-    for relative in ("MEMORY.md", ".claude/memory"):
-        path = workspace / relative
-        add(f"workspace:{relative}", "pass" if path.exists() else "warn", "存在" if path.exists() else "未发现")
+        for relative in ("MEMORY.md", ".claude/memory"):
+            path = workspace / relative
+            add(f"workspace:{relative}", "pass" if path.exists() else "warn", "存在" if path.exists() else "未发现")
 
     errors = sum(1 for item in checks if item["status"] == "fail")
     warnings = sum(1 for item in checks if item["status"] == "warn")
@@ -135,11 +138,12 @@ def _render_text(report: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="novel-creator-pro 插件体检")
     parser.add_argument("--root", default="", help="覆盖工作区根目录")
+    parser.add_argument("--plugin-only", action="store_true", help="只检查插件资产，跳过工作区")
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     args = parser.parse_args()
 
     workspace = Path(args.root).expanduser().resolve() if args.root else None
-    report = inspect(workspace)
+    report = inspect(workspace, plugin_only=args.plugin_only)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:

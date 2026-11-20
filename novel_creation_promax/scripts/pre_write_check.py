@@ -30,6 +30,12 @@ import re
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from novel_creation_promax.core import thresholds as T  # noqa: E402
+
 
 # ============================================================
 # 配置区
@@ -57,7 +63,8 @@ QUESTIONS = [
      "desc": "本章结尾要留下的悬念"},
 ]
 
-PASS_THRESHOLD = 70  # 9问总分≥70分方可写作
+PASS_THRESHOLD = T.PRE_WRITE_PASS  # 9问总分≥70分方可写作
+EVIDENCE_LEVELS = ("confirmed", "inferred", "assumed")
 
 
 def score_answer(answer, weight):
@@ -229,6 +236,115 @@ def check_outline_chapter(outline_file: str, chapter: int) -> dict:
         return {"exists": True, "data": outline[key], "warning": None}
 
     return {"exists": False, "data": None, "warning": f"细纲中未找到第{chapter}章"}
+
+
+def check_unknown_facts(novel_dir: str, chapter: int) -> dict:
+    """Read the chapter rule_stack and surface unresolved critical facts."""
+    path = Path(novel_dir) / "摘要" / f"chapter_{chapter:03d}_rule_stack.json"
+    if not path.is_file():
+        return {
+            "exists": False,
+            "pass": True,
+            "unknown_facts": [],
+            "critical": [],
+            "detail": "rule_stack 不存在，跳过未知事实扫描",
+        }
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "exists": True,
+            "pass": False,
+            "unknown_facts": [],
+            "critical": [],
+            "detail": f"rule_stack 解析失败: {exc}",
+        }
+    facts = payload.get("unknown_facts") if isinstance(payload, dict) else []
+    if not isinstance(facts, list):
+        facts = []
+    facts = [item for item in facts if isinstance(item, dict)]
+    critical = [item for item in facts if item.get("critical")]
+    detail = (
+        "无未知事实"
+        if not facts
+        else f"未知事实 {len(facts)} 条，critical {len(critical)} 条"
+    )
+    return {
+        "exists": True,
+        "pass": not critical,
+        "unknown_facts": facts,
+        "critical": critical,
+        "detail": detail,
+    }
+
+
+def check_evidence_levels(novel_dir: str, chapter: int) -> dict:
+    """Read rule_stack evidence levels.
+
+    ``assumed`` active rules and critical assumed facts block writing.
+    """
+    path = Path(novel_dir) / "摘要" / f"chapter_{chapter:03d}_rule_stack.json"
+    if not path.is_file():
+        return {
+            "status": "skipped",
+            "pass": True,
+            "levels": {},
+            "assumed_critical": [],
+            "warnings": [],
+            "detail": "rule_stack 不存在，跳过证据分级",
+        }
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "status": "fail",
+            "pass": False,
+            "levels": {},
+            "assumed_critical": [],
+            "warnings": [f"rule_stack 解析失败: {exc}"],
+            "detail": f"rule_stack 解析失败: {exc}",
+        }
+    if not isinstance(payload, dict):
+        return {
+            "status": "fail",
+            "pass": False,
+            "levels": {},
+            "assumed_critical": [],
+            "warnings": ["rule_stack 不是对象"],
+            "detail": "rule_stack 不是对象",
+        }
+
+    levels: dict[str, int] = {}
+    warnings: list[str] = []
+    assumed_rules: list = []
+    for item in payload.get("active_rules") or []:
+        if not isinstance(item, dict):
+            continue
+        level = str(item.get("evidence_level") or "confirmed")
+        levels[level] = levels.get(level, 0) + 1
+        if level not in EVIDENCE_LEVELS:
+            warnings.append(f"未知 evidence_level: {level}")
+        elif level == "assumed":
+            assumed_rules.append(item)
+
+    assumed_facts = [
+        item
+        for item in payload.get("assumed_facts") or []
+        if isinstance(item, dict) and item.get("critical", True)
+    ]
+    blockers = assumed_rules + assumed_facts
+    return {
+        "status": "fail" if blockers else "pass",
+        "pass": not blockers,
+        "levels": levels,
+        "assumed_critical": blockers,
+        "warnings": warnings,
+        "detail": (
+            f"存在 {len(blockers)} 条 assumed 事实，禁止写正文"
+            if blockers
+            else "证据分级正常"
+        ),
+    }
 
 
 def extract_title_keywords(title: str) -> list:
@@ -416,6 +532,43 @@ def run_pre_write_check(
                 "detail": outline_info.get("warning", "细纲信息缺失"),
             })
 
+    # Check 6: 未知事实
+    unknown_info = check_unknown_facts(novel_dir, chapter)
+    checks.append({
+        "name": "未知事实已清空",
+        "pass": unknown_info["pass"],
+        "detail": unknown_info["detail"],
+    })
+    report["unknown_facts"] = unknown_info["unknown_facts"]
+    report["blockers"] = unknown_info["critical"]
+
+    # Check 7: 证据分级
+    evidence_info = check_evidence_levels(novel_dir, chapter)
+    checks.append({
+        "name": "证据分级无 assumed",
+        "pass": evidence_info["pass"],
+        "detail": evidence_info["detail"],
+    })
+    report["evidence_levels"] = evidence_info
+    if evidence_info["assumed_critical"]:
+        report["blockers"].extend(evidence_info["assumed_critical"])
+    if evidence_info["warnings"]:
+        report["warnings"].extend(evidence_info["warnings"])
+
+    report["pass"] = (
+        report["score"] >= PASS_THRESHOLD
+        and unknown_info["pass"]
+        and evidence_info["pass"]
+    )
+    if unknown_info["critical"]:
+        report["warnings"].append(
+            f"存在 {len(unknown_info['critical'])} 条 critical 未知事实，写前必须补齐"
+        )
+    if not unknown_info["exists"]:
+        report["warnings"].append(
+            "未找到 rule_stack，无法确认未知事实；请先运行 write_pipeline.py pre"
+        )
+
     report["five_checks"] = checks
 
     # 汇总警告
@@ -449,11 +602,38 @@ def format_report(report: dict) -> str:
             lines.append(f"      → {answer_preview}")
     lines.append("")
 
-    # 5 项检查
-    lines.append("【写前5项检查】")
+    # 写前检查
+    lines.append("【写前检查】")
     for c in report["five_checks"]:
         c_status = "✅" if c["pass"] else "❌"
         lines.append(f"  {c_status} {c['name']}: {c['detail']}")
+    lines.append("")
+
+    # 未知事实
+    lines.append("【未知事实】")
+    unknown_facts = report.get("unknown_facts") or []
+    if not unknown_facts:
+        lines.append("  ✅ 无未知事实")
+    else:
+        for fact in unknown_facts:
+            marker = "❌ CRITICAL" if fact.get("critical") else "⚠️ warning"
+            entity = f" {fact.get('entity_id')}" if fact.get("entity_id") else ""
+            field = f".{fact.get('field')}" if fact.get("field") else ""
+            lines.append(
+                f"  {marker} {fact.get('file')}{entity}{field}: {fact.get('reason')}"
+            )
+    lines.append("")
+
+    # 证据分级
+    lines.append("【证据分级】")
+    evidence = report.get("evidence_levels") or {}
+    levels = evidence.get("levels") or {}
+    if not levels and not evidence.get("assumed_critical"):
+        lines.append("  ✅ rule_stack 无证据分级信息（旧版）")
+    else:
+        lines.append("  " + " | ".join(f"{key}={value}" for key, value in sorted(levels.items())))
+        for item in evidence.get("assumed_critical") or []:
+            lines.append(f"  ❌ assumed: {item.get('reason') or item.get('id')}")
     lines.append("")
 
     # 最终结论
@@ -463,8 +643,12 @@ def format_report(report: dict) -> str:
         lines.append("=" * 50)
     else:
         lines.append("=" * 50)
-        lines.append(f"  ❌ 9问总分 {report['score']} 分 (需≥{PASS_THRESHOLD}分)")
-        lines.append(f"  请完善以上答案后再开始写作")
+        if report["score"] < PASS_THRESHOLD:
+            lines.append(f"  ❌ 9问总分 {report['score']} 分 (需≥{PASS_THRESHOLD}分)")
+        blockers = report.get("blockers") or []
+        if blockers:
+            lines.append(f"  ❌ 存在 {len(blockers)} 条阻断项（critical 未知事实 / assumed）")
+        lines.append("  请补齐全部分阻断项后再开始写作")
         lines.append("=" * 50)
 
     if report["warnings"]:

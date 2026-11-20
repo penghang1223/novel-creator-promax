@@ -5,22 +5,43 @@ description: 新书立项、世界观与人物设定、长篇大纲、分卷和�
 
 # 小说立项与规划
 
-读取并严格执行：
-
-1. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/project-planning/SKILL.md`
-2. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/MODE_REGISTRY.md` 的 `onboarding` / `outline` 模式
-3. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/orchestrator.md` 中立项与大纲阶段
-
 ## 边界
 
-- 只产出创意、设定、结构、细纲和立项门禁报告。
-- 不写章节正文。
-- 新项目目录必须位于 `${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}`。
-- 立项完成后必须运行 `seal`；未通过不得进入写章流水线。
+拥有创意、设定、结构、细纲和长篇正文许可的准备工作；止步于 `seal`，不代替章节写作流程。
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/project_bootstrap_pipeline.py" init \
-  --platform "番茄" --title "书名" --genre "题材" --premise "核心设定"
-python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/project_bootstrap_pipeline.py" seal \
-  --novel-dir "${CLAUDE_PROJECT_DIR}/novel_output/番茄/书名"
-```
+| 输入 | 输出 | 验收 |
+|---|---|---|
+| 用户创意、目标平台、题材、已有项目资料 | 创意/设定/结构/细纲、项目管理三件套、真相文件 | `project_bootstrap_pipeline.py seal` 通过 |
+| 已有大纲或设定 | 有理由的增量修改和变更记录 | 受影响细纲与真相文件一致 |
+
+## 辅助技能
+
+- `name-generator`：角色命名、撞名与同音冲突检查。
+- `title-blurb`：书名、简介、标签与书测素材。
+
+两者只产出各自领域的结果，立项与 seal 门禁仍以本技能为准。
+
+## 执行
+
+1. 读取 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/MODE_REGISTRY.md` 和 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/orchestrator.md` 的 Stage 1–4；阶段顺序和用户确认规则只以编排器为准。
+2. 新书先读平台规则、角色库、对应题材包、`30_Plot` 的大纲/节奏/伏笔文件和质量红线；已有项目先读项目章程、风险登记表、变更记录及当前设定。
+3. 新建长篇时运行：
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/project_bootstrap_pipeline.py" init --platform "{平台}" --title "{书名}" --genre "{题材}" --premise "{核心设定}"
+   ```
+
+4. 按 Stage 1–4 生成或更新规划资产。任何主线、人物动机、能力、卷结构的实质变更，先写入 `knowledge_base/80_Projects/{书名}/变更记录.md`。
+5. 完成后运行：
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/project_bootstrap_pipeline.py" seal --novel-dir "${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}"
+   ```
+
+6. `seal` 未通过时只修复报告列出的规划缺口；通过后交接书名、项目目录、当前细纲和 `can_write_chapter=true` 给章节流程。
+
+## 禁止事项
+
+- 不因 `init` 已创建目录就跳过知识库预读、8 卷细纲或最终复核。
+- 不创建正文、不伪造 `workflow_gate`，也不以口头确认代替 `seal`。
+- 不把细纲当成高于设定底座的真源；发现冲突时按变更协议处理。

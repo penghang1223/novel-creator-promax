@@ -1,0 +1,203 @@
+{
+  "schema_version": "1.0",
+  "name": "review-contract-runtime",
+  "cases": [
+    {
+      "id": "review-cli-blocked-template-to-pass",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "from pathlib import Path; p=Path('{tmp}/番茄/测试书/正文'); p.mkdir(parents=True, exist_ok=True); (p/'第001章-测试.md').write_text('这是一段测试正文。\\n'*80, encoding='utf-8')"
+          ],
+          "expect_exit": 0,
+          "expect_files": [
+            "{tmp}/番茄/测试书/正文/第001章-测试.md"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "init",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 0,
+          "expect_files": [
+            "{tmp}/番茄/测试书/摘要/chapter_001_review.json"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "status",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "blocked"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "save",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1",
+            "--input",
+            "{fixtures}/review_pass.json",
+            "--bind-target"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "status",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "status=pass"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "render",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1",
+            "--output",
+            "{tmp}/report.md"
+          ],
+          "expect_exit": 0,
+          "expect_files": [
+            "{tmp}/report.md"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "from pathlib import Path; p=Path('{tmp}/番茄/测试书/正文/第001章-测试.md'); p.write_text(p.read_text(encoding='utf-8')+'新增内容。', encoding='utf-8')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "status",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "stale"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "review-basis-stale-when-rule-stack-appears",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "from pathlib import Path; root=Path('{tmp}/番茄/测试书'); (root/'正文').mkdir(parents=True, exist_ok=True); (root/'摘要').mkdir(parents=True, exist_ok=True); (root/'正文'/'第001章-测试.md').write_text('这是一段测试正文。\\n'*80, encoding='utf-8')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "init",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "save",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1",
+            "--input",
+            "{fixtures}/review_pass.json",
+            "--bind-target"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "status",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "status=pass"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "import json; from pathlib import Path; p=Path('{tmp}/番茄/测试书/摘要/chapter_001_rule_stack.json'); p.write_text(json.dumps({'schema_version':'1.0','chapter':1,'active_rules':[]}, ensure_ascii=False), encoding='utf-8')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "tools/review_result.py",
+            "status",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "stale",
+            "rule_stack"
+          ]
+        }
+      ]
+    }
+  ]
+}

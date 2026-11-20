@@ -1,5 +1,7 @@
 # 知识包组装流程
 
+> 脚本侧：`write_pipeline.py pre` 依据 `_ROUTES.json` 生成 JSON 清单；路由触发同时看标题和细纲场景标签；`retrieval` 只检索 `20_Characters` / `30_Plot` / `40_Writing`。本文件描述 agent 如何消费这份清单，而不是脚本已经完成的全部工作。
+
 **输入**：本章细纲（从 `细纲/卷X_标题.md` 定位本章段落）
 
 **Step A：提取本章元信息**

@@ -561,7 +561,7 @@ def apply_upgrades(
         lines.append(f"4. 浓度关注词 (+{len(watch_rules)}词):")
         for rule in watch_rules:
             lines.append(f"   + {rule['proposed_rule']}")
-        lines.append(f"   → 记录到: novel_creation_promax/novel-memory-pro/references/watch_words.md")
+        lines.append(f"   → 记录到: skills/novel-memory/references/watch_words.md")
         lines.append(f"")
 
     if dry_run:

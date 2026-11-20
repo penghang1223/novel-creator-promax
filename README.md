@@ -63,8 +63,9 @@ ${CLAUDE_PROJECT_DIR}/
 ├── novel_output/{平台}/{书名}/
 │   ├── 正文/ 摘要/ 素材/ 设定/ 细纲/
 │   └── novel_state.json
-├── 素材/调研/                 # 平台热门方向报告
-├── 创意/                      # 创意卡与五维评分
+├── 素材/调研/                 # 平台热门方向报告（本次运行产物）
+├── 创意/                      # 创意卡与五维评分（本次运行产物）
+├── 创意库/                    # 长期创意库（创意卡/调研/_INDEX.md）
 ├── MEMORY.md
 └── .claude/memory/
 ```
@@ -93,11 +94,46 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/verify_project_integrity.py" \
 | `novel-publish` | 平台格式转换、同步、发布 |
 | `novel-knowledge-ingestion` | 教程/案例/链接知识摄入 |
 | `novel-doctor` | 环境、依赖、工作区、产物一致性 |
+| `novel-diagnose` | 上线后数据诊断、断流急救、切书决策 |
+
+> `skills/` 是技能唯一根目录：每个技能一个目录，`SKILL.md`、`scripts/`、`references/`、`assets/` 都在其中。`novel_creation_promax/` 只保留核心库、流水线脚本和共享参考，不再放 `SKILL.md`。
+
+## 辅助技能（随插件分发）
+
+位于 `skills/`，与主技能一起安装。由主链技能按需调用，也可用自然语言直接触发：
+
+| 技能 | 用途 |
+|---|---|
+| `name-generator` | 角色命名、撞名/AI 命名检查 |
+| `chapter-hook` | 章首/章末钩子、微钩子、钩型轮换 |
+| `title-blurb` | 书名、简介、标签、书测素材 |
+| `deai-check` | AI 味诊断与五层改写 |
+| `platform-format` | 平台稿格式、字数门禁、草稿同步 |
+| `data-diagnosis` | 上线后 11 项数据诊断 |
+| `idea-library` | 长期创意库：查重、归档、索引、搜索 |
+
+## 子代理与结构化审稿
+
+| 子代理 | 职责 | 权限 |
+|---|---|---|
+| `context-agent` | 把细纲、记忆、真相约束压缩成五段写作任务书 | 只读 |
+| `reviewer` | 按五维标准审稿，只返回严格 JSON | 只读 |
+| `data-agent` | 从正文提取 truth delta 草案 | 只读 |
+
+审稿结论分两层：`摘要/chapter_NNN_review.json` 是机器契约，`blocking_count > 0` 会阻断 quality 与 commit；`素材/` 下的审稿报告由 JSON 渲染，只给人看。审稿通过 `target.sha256` 绑定正文版本，正文改动后旧审稿自动失效（`stale`）；blocker/major 必须带 `source_refs` 原文引用。
+
+```bash
+python3 tools/review_result.py save --novel-dir "{小说目录}" --chapter N --input /tmp/reviewer.json
+python3 tools/review_result.py status --novel-dir "{小说目录}" --chapter N --json
+python3 tools/review_result.py render --novel-dir "{小说目录}" --chapter N \
+  --output "{小说目录}/素材/审稿报告_chNNN.md"
+```
 
 ## 运行时护栏
 
 - `SessionStart`：播报工作区、当前书籍/章节、Python 与可选依赖状态。
-- `PreToolUse`：拦截对插件资产的写入，以及对 passport、summary、commit、真相文件、`novel_state.json` 的直接写入。
+- `PreToolUse`：拦截对插件资产的写入，以及对 passport、summary、commit、真相文件、`novel_state.json` 和派生追踪视图的直接写入。
+- `PreToolUse`：首次创建 `正文/第N章...` 时，`细纲/` 必须有对应章节；缺失则阻断。
 - 流水线运行时可设置 `NOVEL_PIPELINE_ACTIVE=1` 放行；人工修复可设置 `NOVEL_ALLOW_STATE_WRITE=1`。
 
 ## 开发
@@ -105,7 +141,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/verify_project_integrity.py" \
 ```bash
 python3 -m unittest discover -s tests
 claude plugin validate ./
-bash tools/ci.sh          # 测试 + 技能健康检查 + 插件体检
+bash tools/ci.sh          # 测试 + 行为评测 + 技能健康检查 + 插件体检
 ```
 
 开发时建议用 `--plugin-dir` 原地加载，避免每次改动都重装：
@@ -125,14 +161,19 @@ claude plugin update novel-creator-pro@novel-creator-pro-market
 
 ```text
 .claude-plugin/     插件与 marketplace 清单
-skills/             插件技能适配层
+skills/             插件技能（每个技能一个目录：SKILL.md + scripts/references/assets）
+agents/             子代理（任务书 / 审稿 / 事实提取）
 commands/           斜杠命令
 hooks/              SessionStart 与写入护栏
-novel_creation_promax/  核心技能、脚本、参考
+novel_creation_promax/  核心库、流水线脚本、共享参考（无 SKILL.md）
 knowledge_base/     裁剪后的只读知识库
 tools/              运维与校验脚本
 tests/              标准库回归测试
 ```
+
+## 参考与致谢
+
+部分质量门禁、开篇评分、数据诊断和台账设计参考了 novel-engine（MIT）、oh-story-claudecode（MIT）、webnovel-writer（GPL-3.0）和 AI_NovelGenerator（AGPL-3.0）的公开设计；代码按本项目结构重写，未直接复制实现。
 
 ## 许可
 

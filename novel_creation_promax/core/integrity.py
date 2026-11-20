@@ -23,6 +23,9 @@ from .jsonio import load_json
 from .passport import normalize_status
 from .paths import count_chinese_chars, infer_chapter_number, list_chapter_files, rel
 from .project_state import load_state
+from .review_result import review_gate, review_path
+
+REQUIRED_COMMIT_ARTIFACTS = ("chapter", "passport", "audit", "truth_delta")
 
 
 def _finding(
@@ -192,6 +195,227 @@ def _check_state(
                 )
 
 
+def _check_resume_contract(
+    novel_dir: Path,
+    state: dict[str, Any],
+    passports: dict[int, tuple[Path, dict[str, Any]]],
+    findings: list[dict[str, Any]],
+) -> None:
+    """resume_point, state.chapters[].workflow and passport.workflow must agree."""
+    resume = state.get("resume_point")
+    if not isinstance(resume, dict):
+        return
+    chapter = _as_int(resume.get("chapter"))
+    if chapter <= 0:
+        return
+
+    entry = passports.get(chapter)
+    if entry is None:
+        max_chapter = max(passports) if passports else 0
+        if chapter <= max_chapter:
+            findings.append(
+                _finding(
+                    "resume_passport_missing",
+                    "error",
+                    f"novel_state.resume_point 指向第{chapter}章，但该章 passport 不存在",
+                    chapter=chapter,
+                    path="novel_state.json",
+                    hint="重跑该章 write_pipeline，或修正 resume_point",
+                )
+            )
+        return
+
+    passport_file, passport = entry
+    workflow = passport.get("workflow", {})
+    if not isinstance(workflow, dict):
+        return
+
+    for key, code in (
+        ("stage", "resume_stage_mismatch"),
+        ("action", "resume_action_mismatch"),
+        ("status", "resume_status_mismatch"),
+    ):
+        resume_value = str(resume.get(key) or "")
+        workflow_value = str(workflow.get("stage" if key == "stage" else "next_action" if key == "action" else "status") or "")
+        if not resume_value or not workflow_value or resume_value == workflow_value:
+            continue
+        severity = "warning" if key == "status" else "error"
+        findings.append(
+            _finding(
+                code,
+                severity,
+                f"resume_point.{key}={resume_value} 与 passport.workflow 不一致（{workflow_value}）",
+                chapter=chapter,
+                path=rel(passport_file, novel_dir),
+                hint="以 passport.workflow 为准重建 resume_point",
+            )
+        )
+
+    chapters = state.get("chapters", {})
+    chapter_state = chapters.get(f"{chapter:03d}") if isinstance(chapters, dict) else None
+    if isinstance(chapter_state, dict) and isinstance(chapter_state.get("workflow"), dict):
+        state_workflow = chapter_state["workflow"]
+        for key in ("stage", "status", "next_action"):
+            left = str(state_workflow.get(key) or "")
+            right = str(workflow.get(key) or "")
+            if left and right and left != right:
+                findings.append(
+                    _finding(
+                        "state_chapter_workflow_mismatch",
+                        "warning",
+                        f"novel_state.chapters[{chapter:03d}].workflow.{key} 与 passport 不一致",
+                        chapter=chapter,
+                        path="novel_state.json",
+                        hint="以 passport.workflow 为准同步 novel_state",
+                    )
+                )
+                break
+
+
+def _check_review(
+    novel_dir: Path,
+    chapter: int,
+    passport: dict[str, Any] | None,
+    findings: list[dict[str, Any]],
+) -> None:
+    """A review must bind the current prose; blockers must not be committed."""
+    path = review_path(novel_dir, chapter)
+    gate = review_gate(novel_dir, chapter)
+    status = str(gate.get("status", "missing"))
+    commit = load_commit(novel_dir, chapter)
+    committed = isinstance(commit, dict) and commit.get("status") == "accepted"
+    pipeline_review = normalize_status((passport or {}).get("pipeline", {}).get("review_result"))
+
+    if status in {"stale", "blocked", "invalid"}:
+        findings.append(
+            _finding(
+                f"review_{status}_committed" if committed else f"review_{status}",
+                "error" if committed else "warning",
+                f"第{chapter}章结构化审稿状态为 {status}" + ("，但已生成 commit" if committed else ""),
+                chapter=chapter,
+                path=rel(path, novel_dir),
+                hint="重新运行 reviewer 并 save；stale 表示正文在审稿后发生变化",
+            )
+        )
+    elif status == "missing":
+        if pipeline_review == "pass":
+            findings.append(
+                _finding(
+                    "review_missing_but_pass",
+                    "error",
+                    f"第{chapter}章 passport 标记 review_result=pass，但审稿 JSON 不存在",
+                    chapter=chapter,
+                    path=rel(path, novel_dir),
+                    hint="重新审稿，或修正 passport.pipeline.review_result",
+                )
+            )
+        if passport and str(passport.get("quality_mode", "")) == "tribunal" and committed:
+            findings.append(
+                _finding(
+                    "review_missing_tribunal",
+                    "error",
+                    f"第{chapter}章为 tribunal 模式但缺少结构化审稿",
+                    chapter=chapter,
+                    path=rel(path, novel_dir),
+                    hint="补齐 chapter_NNN_review.json 后重跑 quality / commit",
+                )
+            )
+
+    if committed and isinstance(commit, dict):
+        artifacts = commit.get("artifacts", {})
+        snapshot = artifacts.get("review_result") if isinstance(artifacts, dict) else None
+        if path.is_file() and (not isinstance(snapshot, dict) or not snapshot.get("exists")):
+            findings.append(
+                _finding(
+                    "review_not_committed",
+                    "warning",
+                    f"第{chapter}章存在审稿 JSON，但未被 commit 绑定",
+                    chapter=chapter,
+                    path=rel(path, novel_dir),
+                    hint="重跑 post --phase commit，把审稿结果纳入提交指纹",
+                )
+            )
+
+
+def _check_rule_stack(
+    novel_dir: Path,
+    chapter: int,
+    chapter_file: Path | None,
+    passport: dict[str, Any] | None,
+    findings: list[dict[str, Any]],
+) -> None:
+    """write_ready=false or critical unknown facts must not coexist with prose."""
+    path = novel_dir / "摘要" / f"chapter_{chapter:03d}_rule_stack.json"
+    pipeline = (passport or {}).get("pipeline", {})
+    if not path.is_file():
+        if isinstance(pipeline, dict) and normalize_status(pipeline.get("truth_compile")) == "pass":
+            findings.append(
+                _finding(
+                    "rule_stack_missing",
+                    "warning",
+                    f"第{chapter}章 truth_compile=pass，但 rule_stack 不存在",
+                    chapter=chapter,
+                    path=rel(path, novel_dir),
+                    hint="重跑 pre 阶段生成 rule_stack",
+                )
+            )
+        return
+
+    payload = load_json(path, {})
+    if not isinstance(payload, dict):
+        findings.append(
+            _finding(
+                "rule_stack_invalid",
+                "error",
+                f"第{chapter}章 rule_stack 不是对象",
+                chapter=chapter,
+                path=rel(path, novel_dir),
+                hint="重跑 pre 阶段",
+            )
+        )
+        return
+
+    write_ready = payload.get("write_ready")
+    critical = [
+        item
+        for item in payload.get("unknown_facts", [])
+        if isinstance(item, dict) and item.get("critical")
+    ]
+    if chapter_file is not None and write_ready is False:
+        findings.append(
+            _finding(
+                "rule_stack_not_ready_with_prose",
+                "error",
+                f"第{chapter}章 rule_stack.write_ready=false，但正文已存在",
+                chapter=chapter,
+                path=rel(path, novel_dir),
+                hint="先补齐 critical 未知事实，或删除正文后重跑 pre",
+            )
+        )
+    if chapter_file is not None and critical:
+        findings.append(
+            _finding(
+                "rule_stack_critical_unknown_with_prose",
+                "error",
+                f"第{chapter}章存在 {len(critical)} 条 critical 未知事实，但正文已存在",
+                chapter=chapter,
+                path=rel(path, novel_dir),
+                hint="补齐真相文件 open_questions 或把非阻断项标为 critical=false",
+            )
+        )
+    if isinstance(pipeline, dict) and normalize_status(pipeline.get("writing_gate")) == "pass" and write_ready is False:
+        findings.append(
+            _finding(
+                "rule_stack_not_ready_after_gate",
+                "error",
+                f"第{chapter}章 writing_gate=pass，但 rule_stack.write_ready=false",
+                chapter=chapter,
+                path=rel(path, novel_dir),
+                hint="gate 在未就绪状态下被放行，需重跑 pre / gate",
+            )
+        )
+
+
 def _check_commit(
     novel_dir: Path,
     chapter: int,
@@ -229,6 +453,21 @@ def _check_commit(
         return
 
     payload = load_commit(novel_dir, chapter) or {}
+    artifacts = payload.get("artifacts", {})
+    if isinstance(artifacts, dict):
+        for name in REQUIRED_COMMIT_ARTIFACTS:
+            snapshot = artifacts.get(name)
+            if not isinstance(snapshot, dict) or not snapshot.get("exists"):
+                findings.append(
+                    _finding(
+                        "commit_artifact_missing",
+                        "error",
+                        f"第{chapter}章 commit 缺少必需产物 {name}",
+                        chapter=chapter,
+                        path=rel(path, novel_dir),
+                        hint=f"重跑 post 阶段，确保 {name} 被纳入提交指纹",
+                    )
+                )
     if chapter > 1 and not payload.get("parent_commit"):
         findings.append(
             _finding(
@@ -402,8 +641,11 @@ def verify_novel_integrity(novel_dir: Path) -> dict[str, Any]:
                     )
 
         _check_commit(novel_dir, chapter, passport, findings)
+        _check_review(novel_dir, chapter, passport, findings)
+        _check_rule_stack(novel_dir, chapter, chapter_file, passport, findings)
 
     _check_state(novel_dir, state, chapter_files, passports, findings)
+    _check_resume_contract(novel_dir, state, passports, findings)
 
     summary = {
         "chapters_checked": len(set(chapter_files) | set(passports) | set(commit_chapters)),

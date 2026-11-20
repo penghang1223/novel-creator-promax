@@ -31,9 +31,10 @@ if hasattr(sys.stderr, "reconfigure"):
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from novel_creation_promax.core.dashboard import write_dashboards  # noqa: E402
 from novel_creation_promax.core.roots import resolve_route_path, workspace_root  # noqa: E402
 
-MEMORY_SCRIPT = PROJECT_ROOT / "novel_creation_promax" / "novel-memory-pro" / "scripts" / "memory_manager.py"
+MEMORY_SCRIPT = PROJECT_ROOT / "skills" / "novel-memory" / "scripts" / "memory_manager.py"
 TRUTH_SCRIPT = PROJECT_ROOT / "novel_creation_promax" / "scripts" / "story_truth_manager.py"
 
 REQUIRED_MEMORY_FILES = [
@@ -369,6 +370,122 @@ def import_bootstrap_if_needed(novel_dir: Path, report: dict[str, Any]) -> bool:
     return result.returncode == 0
 
 
+MEMORY_INDEX_TEMPLATE = """# MEMORY · 网文创作共享记忆索引
+
+> 终端 Claude 与飞书 Claude 双端共享。项目进度、角色状态、伏笔更新必须同步到 knowledge_base/80_Projects/ 对应文件。
+
+## 项目索引
+
+| 书名 | 平台 | 状态 | 项目目录 |
+|---|---|---|---|
+{row}
+
+## 共享规则
+
+- 写新章前必读：项目章程、风险登记表、变更记录、本章细纲、上一章正文。
+- 双端状态以 `novel_output/` 下文件为准，不以聊天记录为准。
+- 正文改动后必须重跑审计链，禁止手改 novel_state 绕过门禁。
+"""
+
+WORKSPACE_MEMORY_TEMPLATES: dict[str, str] = {
+    ".claude/memory/decisions/preferences.md": """# 用户偏好与协作规则
+
+## 创作偏好
+
+- 平台默认番茄；长篇连载按每章 2800-3200 中文字符控制。
+- 拒绝慢热开篇：前 3 章必须有冲突与明确爽点。
+- 角色名禁止含「默」字（历史纠正固化，见 no-mer-names.md）。
+- 角色行为必须符合设定底座：职业、收入、居住、信息差不得漂移。
+
+## 协作流程
+
+- 阶段推进必须先过门禁，不得跳过评估与用户确认。
+- 细纲偏离需先向用户说明并写回细纲注释。
+- 双端状态以文件为准，进度变化同步 knowledge_base/80_Projects/。
+""",
+    ".claude/memory/active_novels/progress.md": """# 当前小说进度
+
+> 每写完一章更新本文件；双端实例以此为准。
+
+## 项目
+
+- 尚未登记。运行 project_bootstrap_pipeline.py init 后在此追加书名、平台、当前章节和下一步。
+""",
+    ".claude/memory/feedback/corrections.md": """# 用户纠正记录
+
+## 字数红线
+
+- 每章正文 2800-3200 中文字符（番茄），低于 2800 必须补写有效剧情，不允许用水景、复述、空泛心理凑字。
+- 补写只允许补观察、试探、交锋、代价、新线索。
+
+## 流程纠正
+
+- 不得用 check 代替 seal 解锁正文；只有 seal 能设置 can_write_chapter=true。
+- 写正文前必须跑 context-agent 任务书与 9 问评分，不得自行整理上下文跳过。
+
+## 新增纠正
+
+- 用户每次纠正后在此追加一条，写明错误行为与正确做法。
+""",
+    ".claude/memory/feedback/no-mer-names.md": """# 角色命名禁忌
+
+所有角色名禁止包含「默」字。
+
+检查范围：人物档案.md、设定/真相文件/characters.json、记忆/project_bootstrap.json、小说信息.md、正文人物首现。
+
+生成角色名后必须逐字核查，含「默」立即更换。
+""",
+}
+
+
+def _insert_memory_row(text: str, row: str) -> str:
+    """Insert a row into the project-index table, or append if no table exists."""
+    lines = text.splitlines()
+    header = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if line.strip().startswith("|") and "书名" in line and "项目目录" in line
+        ),
+        None,
+    )
+    if header is not None:
+        end = header + 1
+        while end < len(lines) and lines[end].strip().startswith("|"):
+            end += 1
+        lines.insert(end, row)
+        return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+    return text + ("" if text.endswith("\n") else "\n") + row + "\n"
+
+
+def scaffold_workspace(title: str, platform: str, novel_dir: Path) -> list[str]:
+    """Create workspace-level files that ``seal`` checks.
+
+    Never overwrites existing user memory, even with ``--force``: the
+    workspace belongs to the user, not to the plugin.
+    """
+    workspace = workspace_root()
+    written: list[str] = []
+
+    memory = workspace / "MEMORY.md"
+    row = f"| {title} | {platform} | 立项中 | {rel(novel_dir)} |"
+    if not memory.exists():
+        write_if_missing(memory, MEMORY_INDEX_TEMPLATE.format(row=row))
+        written.append("MEMORY.md")
+    else:
+        existing = read_text(memory)
+        if title not in existing:
+            memory.write_text(_insert_memory_row(existing, row), encoding="utf-8")
+            written.append("MEMORY.md(追加项目索引)")
+
+    for relative, content in WORKSPACE_MEMORY_TEMPLATES.items():
+        path = workspace / relative
+        if write_if_missing(path, content):
+            written.append(relative)
+
+    return written
+
+
 def scaffold_project(args: argparse.Namespace) -> Path:
     novel_dir = project_dir(args.platform, args.title, args.novel_dir)
     for name in PROJECT_DIRS:
@@ -378,7 +495,7 @@ def scaffold_project(args: argparse.Namespace) -> Path:
 
     title = args.title or novel_dir.name
     platform = args.platform or novel_dir.parent.name
-    genre = args.genre or "待填写"
+    genre = args.genre or "未指定"
     premise = args.premise or "待填写：用一句话写清主角、金手指、冲突和长期目标。"
 
     write_if_missing(
@@ -778,9 +895,28 @@ def scaffold_project(args: argparse.Namespace) -> Path:
     kb_config = kb_dir / "_config.md"
     write_if_missing(
         kb_config,
-        f"# {title}\n\n- 平台：{platform}\n- 题材：{genre}\n- 状态：立项中\n- 项目目录：{rel(novel_dir)}\n- 当前进度：待填写\n",
+        f"# {title}\n\n"
+        f"- 平台：{platform}\n"
+        f"- 题材：{genre}\n"
+        f"- 状态：立项中\n"
+        f"- 项目目录：{rel(novel_dir)}\n"
+        f"- 当前进度：立项中（第 0 章）\n\n"
+        f"## 写作约束\n\n"
+        f"- 每章目标字数：2800-3200 中文字符（以平台档案为准）\n"
+        f"- 视角：第三人称限知，禁止越界进入他人内心\n"
+        f"- 风格锚点：项目 记忆/style_dna_baseline.json\n",
         args.force,
     )
+
+    workspace_files = scaffold_workspace(title, platform, novel_dir)
+    if workspace_files:
+        print(f"[OK] 工作区共享记忆已补齐: {', '.join(workspace_files)}")
+
+    try:
+        novel_dir.resolve().relative_to(workspace_root().resolve())
+        write_dashboards(workspace_root(), novel_dir)
+    except (OSError, ValueError):
+        pass
 
     print(f"[OK] 项目结构已初始化: {novel_dir}")
     print("[NEXT] 严格按以下顺序执行（先读后写，禁止跳步）：")

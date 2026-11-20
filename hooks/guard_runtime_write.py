@@ -22,6 +22,10 @@ PROTECTED_PATTERNS = (
     "素材/commits/*",
     "设定/真相文件/*",
     "novel_state.json",
+    "追踪/时间线/*",
+    "追踪/上下文.md",
+    "追踪/伏笔.md",
+    "追踪/角色状态/*",
 )
 
 
@@ -66,13 +70,19 @@ def main() -> int:
     if os.environ.get("NOVEL_ALLOW_STATE_WRITE") == "1":
         return 0
 
-    plugin_relative = _relative(target, plugin)
-    if plugin_relative is not None:
-        return _block(
-            "[novel-creator-pro] 插件资产是只读的，禁止直接写入：\n"
-            f"  {target}\n"
-            "插件更新后旧目录会被清理。请把产物写到工作区 ${CLAUDE_PROJECT_DIR}。"
-        )
+    # Source repository: plugin and workspace are the same directory.
+    # Editing plugin source is the explicit purpose of this mode; the
+    # pipeline-state protections below still apply.
+    source_repo = plugin == workspace
+
+    if not source_repo:
+        plugin_relative = _relative(target, plugin)
+        if plugin_relative is not None:
+            return _block(
+                "[novel-creator-pro] 插件资产是只读的，禁止直接写入：\n"
+                f"  {target}\n"
+                "插件更新后旧目录会被清理。请把产物写到工作区 ${CLAUDE_PROJECT_DIR}。"
+            )
 
     workspace_relative = _relative(target, workspace)
     if workspace_relative is None:

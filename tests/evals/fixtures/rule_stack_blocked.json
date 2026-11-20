@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "chapter": 1,
+  "unknown_facts": [
+    {
+      "file": "characters.json",
+      "entity_id": "char_001",
+      "field": "motivation",
+      "reason": "作者尚未确定主角动机",
+      "critical": true
+    }
+  ],
+  "blockers": [
+    {
+      "file": "characters.json",
+      "entity_id": "char_001",
+      "field": "motivation",
+      "reason": "作者尚未确定主角动机",
+      "critical": true
+    }
+  ],
+  "write_ready": false
+}

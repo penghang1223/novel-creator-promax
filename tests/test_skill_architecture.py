@@ -10,20 +10,20 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = PROJECT_ROOT / "novel_creation_promax"
-SUBSKILLS = (
-    "novel-memory-pro",
-    "review-skill",
-    "project-planning",
-    "publishing",
-    "knowledge-ingestion",
+SKILL_NAMES = (
+    "novel-project-planning",
+    "novel-memory",
+    "novel-review",
+    "novel-publish",
+    "novel-knowledge-ingestion",
 )
 
 
 class SkillArchitectureTest(unittest.TestCase):
     def test_subskills_define_frontmatter_and_boundaries(self):
-        for name in SUBSKILLS:
+        for name in SKILL_NAMES:
             with self.subTest(skill=name):
-                content = (SKILL_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
+                content = (PROJECT_ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
                 self.assertTrue(content.startswith("---\n"))
                 self.assertIn("name:", content)
                 self.assertIn("description:", content)
@@ -31,13 +31,13 @@ class SkillArchitectureTest(unittest.TestCase):
                 self.assertIn("## 禁止事项", content)
 
     def test_main_skill_routes_by_capability_not_chapter_microsteps(self):
-        content = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        content = (PROJECT_ROOT / "skills" / "novel-creator" / "SKILL.md").read_text(encoding="utf-8")
         for ref in (
-            "project-planning/SKILL.md",
-            "novel-memory-pro/SKILL.md",
-            "review-skill/SKILL.md",
-            "publishing/SKILL.md",
-            "knowledge-ingestion/SKILL.md",
+            "skills/novel-project-planning/SKILL.md",
+            "skills/novel-memory/SKILL.md",
+            "skills/novel-review/SKILL.md",
+            "skills/novel-publish/SKILL.md",
+            "skills/novel-knowledge-ingestion/SKILL.md",
             "references/orchestrator.md",
         ):
             self.assertIn(ref, content)

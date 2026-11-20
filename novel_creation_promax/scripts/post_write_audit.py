@@ -20,6 +20,12 @@ from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from novel_creation_promax.core import thresholds as T  # noqa: E402
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
@@ -62,24 +68,24 @@ STRICT_LIMITED = {
 }
 
 # 浓度预警
-CONCENTRATION_PER_CHAPTER = 5  # 任何AI词单章 >= 5次 → 浓度预警
-TOTAL_AI_WORDS_PER_CHAPTER = 30  # 全章AI词总数 >= 30 → AI味预警
+CONCENTRATION_PER_CHAPTER = T.CONCENTRATION_PER_CHAPTER  # 任何AI词单章 >= 5次 → 浓度预警
+TOTAL_AI_WORDS_PER_CHAPTER = T.TOTAL_AI_WORDS_PER_CHAPTER  # 全章AI词总数 >= 30 → AI味预警
 
 # 字数红线（中文字符）
-WORD_COUNT_MIN = 2800  # 每章最低中文字数
-WORD_COUNT_MAX = 3200  # 每章最高中文字符
-WORD_COUNT_TARGET = 3000
+WORD_COUNT_MIN = T.WORD_COUNT_MIN  # 每章最低中文字数
+WORD_COUNT_MAX = T.WORD_COUNT_MAX  # 每章最高中文字符
+WORD_COUNT_TARGET = T.WORD_COUNT_TARGET
 
 # 对话比例红线
-DIALOGUE_RATIO_MIN = 0.25  # 网文对话比例 >= 25%
+DIALOGUE_RATIO_MIN = T.DIALOGUE_RATIO_MIN  # 网文对话比例 >= 25%
 
 # 重复度红线
-REPEAT_RATIO_MAX = 0.25  # 相邻章节开头重复度 <= 25%
+REPEAT_RATIO_MAX = T.REPEAT_RATIO_MAX  # 相邻章节开头重复度 <= 25%
 
 # 单句成行红线
 # 注：本网文采用碎片化短句风格（每句单独成段），经20章实测数据：85-167次/章。
 # 阈值设为200，仅拦截极端异常情况（如换行符污染、格式错乱）。
-SINGLE_LINE_PARAGRAPH_MAX = 200  # 每章单句成行段落不得超过N个（实测基准：85-167）
+SINGLE_LINE_PARAGRAPH_MAX = T.SINGLE_LINE_PARAGRAPH_MAX  # 每章单句成行段落不得超过N个（实测基准：85-167）
 
 # 标题关键词最小长度
 TITLE_KEYWORD_MIN_LEN = 2
@@ -139,6 +145,57 @@ def calc_dialogue_ratio(text: str) -> float:
     if total_chars == 0:
         return 0.0
     return dialogue_chars / total_chars
+
+
+def calc_density_per_1000(text: str, pattern: str) -> float:
+    chinese = len(re.findall(r"[\u4e00-\u9fff]", text)) or 1
+    return len(re.findall(pattern, text)) / chinese * 1000
+
+
+def calc_bare_dialogue_ratio(text: str) -> float:
+    """Ratio of quoted dialogue followed by a bare speech tag."""
+    dialogues = re.findall(r"[“\"]([^”\"\n]{1,200})[”\"]\s*([^\n]{0,24})", text)
+    if len(dialogues) < 3:
+        return 0.0
+    bare = 0
+    for _quote, tail in dialogues:
+        tail = tail.strip()
+        if re.match(r"^[\u4e00-\u9fa5]{1,4}(说|道|问|答|喊|叫|笑|骂)", tail):
+            bare += 1
+    return bare / len(dialogues)
+
+
+def check_chapter_end_form(text: str) -> list:
+    tail = text.strip()[-T.CHAPTER_END_TAIL_CHARS:]
+    issues = []
+    if re.search(r"(第[零一二三四五六七八九十百千万\d]+章完)\s*[。！？!?]?\s*$", tail):
+        issues.append("以「第X章完」收尾")
+    if re.search(r"[？?]\s*$", tail):
+        issues.append("以反问句收尾")
+    if re.search(r"[！!]\s*$", tail):
+        issues.append("以感叹句收尾")
+    if re.search(r"(总之|总而言之|就这样|一切|从此)\s*[。.]?\s*$", tail):
+        issues.append("以总结/平收收尾")
+    return issues
+
+
+def check_paragraph_uniformity(text: str, streak: int = T.PARAGRAPH_UNIFORMITY_STREAK, tolerance: float = 0.10) -> list:
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    lengths = [len(part) for part in paragraphs]
+    if len(lengths) < streak:
+        return []
+    issues = []
+    run = 1
+    for index in range(1, len(lengths)):
+        previous, current = lengths[index - 1], lengths[index]
+        if previous and abs(current - previous) / previous <= tolerance:
+            run += 1
+        else:
+            run = 1
+        if run == streak:
+            window = lengths[index - streak + 1:index + 1]
+            issues.append(f"第{index - streak + 2}-{index + 1}段长度接近: {window}")
+    return issues
 
 
 def check_title_keywords(text: str, title: str) -> list:
@@ -680,6 +737,12 @@ def audit_chapter(chapter_text: str, title: str, prev_text: str = None, ability_
         "pass": True,
         "warnings": [],
         "ai_extended": {},
+        "dash_density": 0.0,
+        "colon_density": 0.0,
+        "bare_dialogue_ratio": 0.0,
+        "chapter_end_issues": [],
+        "paragraph_uniformity_issues": [],
+        "emotion_naming_count": 0,
         "phase_status": {"logic": "unchecked", "ai_words": "unchecked", "dialogue": "unchecked"},
         "advisory": {},  # warning级检查项，不阻断
     }
@@ -733,6 +796,40 @@ def audit_chapter(chapter_text: str, title: str, prev_text: str = None, ability_
         results["pass"] = False
         results["warnings"].append(
             f"❌ 对话比例 {results['dialogue_ratio']:.1%} (最低: {DIALOGUE_RATIO_MIN:.0%})"
+        )
+
+    # 3b. 十步门禁补充：破折号/冒号密度、裸标签、章尾、情绪命名、段落均匀度
+    chinese_count = results["word_count"] or 1
+    results["dash_density"] = chapter_text.count("——") / chinese_count * 1000
+    colon_count = chapter_text.count("：") - len(re.findall(r"\d{1,2}:\d{2}", chapter_text))
+    results["colon_density"] = max(0, colon_count) / chinese_count * 1000
+    if results["dash_density"] > T.DASH_PER_1000_MAX:
+        results["warnings"].append(
+            f"⚠️ 破折号密度 {results['dash_density']:.2f}/千字（判 AI 参考线: {T.DASH_PER_1000_MAX}）"
+        )
+    if results["colon_density"] > T.COLON_PER_1000_MAX:
+        results["warnings"].append(
+            f"⚠️ 提示语冒号密度 {results['colon_density']:.2f}/千字（判 AI 参考线: {T.COLON_PER_1000_MAX}）"
+        )
+
+    results["bare_dialogue_ratio"] = calc_bare_dialogue_ratio(chapter_text)
+    if results["bare_dialogue_ratio"] > T.BARE_DIALOGUE_RATIO_MAX:
+        results["warnings"].append(
+            f"⚠️ 裸对话标签占比 {results['bare_dialogue_ratio']:.0%}（上限: {T.BARE_DIALOGUE_RATIO_MAX:.0%}），建议改用动作标签"
+        )
+
+    results["chapter_end_issues"] = check_chapter_end_form(chapter_text)
+    for issue in results["chapter_end_issues"]:
+        results["warnings"].append(f"⚠️ 章尾形态: {issue}")
+
+    results["paragraph_uniformity_issues"] = check_paragraph_uniformity(chapter_text)
+    for issue in results["paragraph_uniformity_issues"]:
+        results["warnings"].append(f"⚠️ 段落均匀度: {issue}")
+
+    results["emotion_naming_count"] = chapter_text.count("感到") + chapter_text.count("觉得")
+    if results["emotion_naming_count"] > T.EMOTION_NAMING_MAX:
+        results["warnings"].append(
+            f"⚠️ 情绪命名 {results['emotion_naming_count']} 次（上限: {T.EMOTION_NAMING_MAX}），改成动作/感官暗示"
         )
 
     # 4. 标题关键词匹配
@@ -913,6 +1010,26 @@ def format_report(results: dict) -> str:
     ratio = results["dialogue_ratio"]
     status = "✅" if ratio >= DIALOGUE_RATIO_MIN else "❌"
     lines.append(f"  {status} {ratio:.1%} (目标: ≥{DIALOGUE_RATIO_MIN:.0%})")
+
+    lines.append(f"")
+    lines.append(f"【十步门禁补充】")
+    lines.append(
+        f"  破折号: {results['dash_density']:.2f}/千字 (线: {T.DASH_PER_1000_MAX})"
+        f" ｜ 冒号: {results['colon_density']:.2f}/千字 (线: {T.COLON_PER_1000_MAX})"
+    )
+    lines.append(
+        f"  裸对话标签: {results['bare_dialogue_ratio']:.0%} (上限: {T.BARE_DIALOGUE_RATIO_MAX:.0%})"
+        f" ｜ 情绪命名: {results['emotion_naming_count']} 次 (上限: {T.EMOTION_NAMING_MAX})"
+    )
+    if results["chapter_end_issues"]:
+        lines.append(f"  ⚠️ 章尾: {', '.join(results['chapter_end_issues'])}")
+    else:
+        lines.append("  ✅ 章尾形态正常")
+    if results["paragraph_uniformity_issues"]:
+        for issue in results["paragraph_uniformity_issues"]:
+            lines.append(f"  ⚠️ {issue}")
+    else:
+        lines.append("  ✅ 段落长度有落差")
 
     lines.append(f"")
     lines.append(f"【标题关键词】")
@@ -1116,15 +1233,15 @@ def _results_passed(results) -> bool:
 
 # 指标2：连接词过度 — 机械连接词密度
 CONNECTOR_WORDS = ['然后', '接着', '因此', '但是', '可是', '于是', '接下来', '随后', '紧接着']
-CONNECTOR_MAX_PER_1000 = 15  # 超过此密度预警
+CONNECTOR_MAX_PER_1000 = T.CONNECTOR_MAX_PER_1000  # 超过此密度预警
 
 # 指标3：被动语态 — "被"字句比例
 PASSIVE_PATTERNS = ['被', '遭', '受', '令', '令其']
-PASSIVE_MAX_RATIO = 0.08  # 被动句占比超过8%预警（网文一般较低）
+PASSIVE_MAX_RATIO = T.PASSIVE_MAX_RATIO  # 被动句占比超过8%预警（网文一般较低）
 
 # 指标7：程度副词重复 — 同一程度副词连续出现
 DEGREE_ADVERBS = ['十分', '非常', '极其', '格外', '格外地', '异常', '颇为', '相当', '异常']
-DEGREE_ADVERB_CONSECUTIVE_MAX = 3  # 同一副词出现3次以上预警
+DEGREE_ADVERB_CONSECUTIVE_MAX = T.DEGREE_ADVERB_CONSECUTIVE_MAX  # 同一副词出现3次以上预警
 
 # 指标8：陈词滥调 — AI常用套话
 CLICHES = [
@@ -1132,15 +1249,15 @@ CLICHES = [
     '意味深长', '若有所思', '欲言又止', '哭笑不得', '无可奈何',
     '异口同声', '不约而同地', '不由自主地', '不假思索', '脱口而出',
 ]
-CLICHE_MAX_PER_1000 = 3  # 每1000字超过3个预警
+CLICHE_MAX_PER_1000 = T.CLICHE_MAX_PER_1000  # 每1000字超过3个预警
 
 # 指标9：句尾模式化 — 连续句子相同结尾
-SENTENCE_ENDING_MAX_REPEAT = 5  # 连续5句相同句尾预警
+SENTENCE_ENDING_MAX_REPEAT = T.SENTENCE_ENDING_MAX_REPEAT  # 连续5句相同句尾预警
 
 # 指标11：Show vs Tell 近似检测 — 直接情感词密度
 TELL_WORDS = ['感到', '觉得很', '觉得很', '觉得十分', '觉得非常', '觉得特别', '心里想着',
               '心中暗想', '心中暗道', '心想', '暗自', '暗自想着']
-TELL_MAX_PER_1000 = 8  # 每1000字超过8个预警
+TELL_MAX_PER_1000 = T.TELL_MAX_PER_1000  # 每1000字超过8个预警
 
 # ============================================================
 # CLI

@@ -5,14 +5,35 @@ description: 把写作教程、平台规则、爆款案例、文章链接或用�
 
 # 小说知识摄入
 
-读取并严格执行：
-
-1. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/knowledge-ingestion/SKILL.md`
-2. `${CLAUDE_PLUGIN_ROOT}/knowledge_base/_ROUTING.md`
-
 ## 边界
 
+拥有外部知识的提取、归档和可执行化；不把外部原文直接写入小说正文或既有项目设定。
+
+| 输入 | 输出 | 真源 |
+|---|---|---|
+| 链接、粘贴文本、文档 | 原始素材、知识卡片、PARA 归档、3 个思考问题 | `knowledge_base/` Markdown |
+| 已入库知识 | 可执行的写作规则或实践建议 | 对应知识卡片 |
+
 - 原始素材、知识卡片和索引更新写入工作区 `knowledge_base/`。
-- 不原文照搬，只提取可执行技法。
-- 分类不确定先放 `15_Ideas/其他/`，48 小时内归位。
 - 不修改小说正文、设定或流水线状态。
+- 分类不确定先放 `15_Ideas/其他/`，48 小时内归位。
+
+## 执行
+
+1. 获取原文；链接内容先抓取为本地 Markdown，保留来源 URL、作者和抓取日期。
+2. 提炼可执行规则、适用条件、反例和限制；禁止大段照搬原文。
+3. 使用脚本归档原始素材与初始卡片：
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/ingest.py" --file "{原文.md}" --title "{中文短标题}" --topic "{writing|plot|character|...}" --output "{报告.json}"
+   ```
+
+4. 复核分类：原创思考放 `space/crafted/`，外部收集放 `space/found/`，原始内容放 `flux/`；再将可复用知识同步到对应 PARA 分类。
+5. 更新 `knowledge_base/00_Index.md` 和目标目录 README，提出连接、挑战、行动三个问题。
+6. 只有用户明确要求应用到某本小说时，才将筛选后的规则交给对应规划或章节流程。
+
+## 禁止事项
+
+- 不把分类不明的内容伪装成已验证规则；先置入 `00_Inbox/`。
+- 不把抽取结论当作平台最新规则；涉及平台时应重新核验来源日期。
+- 不因摄入知识而直接修改正文、细纲或项目真相文件。

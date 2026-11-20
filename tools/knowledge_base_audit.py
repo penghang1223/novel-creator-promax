@@ -54,8 +54,13 @@ def audit() -> dict:
     if inbox_files:
         warnings.append(f"00_Inbox 仍有 {len(inbox_files)} 个待归类文件/目录")
 
+    # 归档域由 _STRUCTURE.json 声明才要求存在：运行精简库可能不含 90_Archive。
+    declares_archive = any(
+        str(item.get("path", "")).startswith("90_Archive")
+        for item in structure.get("domains", [])
+    )
     archive_root = KNOWLEDGE_ROOT / "90_Archive"
-    if not archive_root.is_dir():
+    if declares_archive and not archive_root.is_dir():
         errors.append("缺少历史归档域: 90_Archive")
     for archived in structure.get("archive_subtrees", []):
         path = KNOWLEDGE_ROOT / archived["path"]

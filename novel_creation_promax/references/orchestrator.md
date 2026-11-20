@@ -52,7 +52,7 @@ Level 4: 章节规划（每章一句话 + 关键事件 + 伏笔节点）
 | **3. 大纲** | 设定通过 | 设定文档 | `stages/03-structure/` + `../knowledge_base/50_Quality/评估系统/结构评估.md` | 大纲+结构文档 | 用户确认 + 评估通过 |
 | **4. 细纲** | 大纲通过 | 大纲文档 | `stages/04-outline/` + `../knowledge_base/50_Quality/评估系统/大纲评估.md` | 细纲JSON | 用户确认 + 主节点规划完成 |
 | **5. 正文** | 用户要写第N章 | 细纲+记忆包 | 9问→写前检查→写正文→写后审计 | 章节正文 | 审计全部通过 |
-| **6. 记忆** | 章节完成 | 章节摘要 | `novel-memory-pro` sync-chapter | 记忆更新 | 自动完成 |
+| **6. 记忆** | 章节完成 | 章节摘要 | `novel-memory` sync-chapter | 记忆更新 | 自动完成 |
 | **7. 复盘** | 完结/用户触发 | 全部章节 | `novel_creation_promax/scripts/novel_review_and_upgrade.py` | 规则升级建议 | 用户确认后写入知识库 |
 
 **硬规则**：禁止跨阶段、禁止跳过评估、禁止跳过用户确认。详见 `references/workflow.md` 的阶段门禁机制。
@@ -131,10 +131,14 @@ Level 4: 章节规划（每章一句话 + 关键事件 + 伏笔节点）
     ▼
 0. 校验并编译真相文件 ───── python novel_creation_promax/scripts/story_truth_manager.py validate/compile
     │                    输出：摘要/chapter_NNN_rule_stack.json + 素材/chapter_NNN_truth_brief.md
+    │                    rule_stack.unknown_facts 收集 open_questions / status=unknown
+    │                    rule_stack.truth_layers 区分作者真相 / 读者已知 / 未揭示
+    │                    rule_stack.assumed_facts 收集 critical 假设事实；active_rules 标 evidence_level
+    │                    write_ready=false（存在 critical 未知事实或 assumed 事实）则禁止起草
     │                    未通过则禁止写正文
     │
     ▼
-1. 生成记忆包 ────────── python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py chapter-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/记忆 --output chapter_N_pack.json
+1. 生成记忆包 ────────── python skills/novel-memory/scripts/memory_manager.py chapter-pack --chapter N --memory-dir novel_output/{平台}/{小说名}/记忆 --output chapter_N_pack.json
     │
     ▼
 1.5 加载知识路由 ──────── 读 `../knowledge_base/_ROUTING.md` + 本章 `摘要/chapter_NNN_knowledge_pack.json`
@@ -145,11 +149,18 @@ Level 4: 章节规划（每章一句话 + 关键事件 + 伏笔节点）
     ▼
 2. 9问必答系统 ──────── python novel_creation_promax/scripts/pre_write_check.py --novel-dir ... --chapter N --answers-file ...
     │                    `../knowledge_base/50_Quality/红线检查/章节前检查.md`（总分≥70分）
+    │                    同时检查 rule_stack.unknown_facts / assumed_facts；critical 未清空则 exit 1
     │                    检查 exit code，非0则必须完善答案后重跑
     │
     ▼
 3. 生成场景写作卡 ────── `references/scene-writing-card.md` 模板，填入本章信息
     │                      重点：章节截断点（本章在什么事件后结束）
+    │
+    ▼
+3.5 写作任务书 ──────── Agent: novel-creator-pro:context-agent（只读）
+    │                      读 rule_stack / truth_brief / knowledge_pack / memory_pack / 骨架
+    │                      输出五段任务书到 摘要/chapter_NNN_taskbook.md
+    │                      返回 blocker 时先补细纲/设定，不得直接起草
     │
     ▼
 ══════════════════════════════════════
@@ -186,6 +197,14 @@ python novel_creation_promax/scripts/writing_gate.py --chapter {文件} --novel-
     │   - 如果某个词替换会导致语义不通，跳过该替换
     │
     ▼
+5.5 结构化审稿 ──────── Agent: novel-creator-pro:reviewer（只读，只返回 JSON）
+    │                      先跑 tools/review_result.py target --ensure-revision --with-basis
+    │                      JSON 必须带 target(revision) + basis + expected_versions + source_refs
+    │                      JSON 写入 摘要/chapter_NNN_review.json
+    │                      validate/status 校验目标与原文引用
+    │                      blocking_count>0 或 stale → quality/commit 阶段阻断
+    │
+    ▼
 6. 写后审计 ─────────── python novel_creation_promax/scripts/post_write_audit.py
     │                   执行顺序：①逻辑检查 → ②AI词清理 → ③对话质量
     │                   ①逻辑检查不通过，不进入②③
@@ -204,21 +223,24 @@ python novel_creation_promax/scripts/writing_gate.py --chapter {文件} --novel-
     │                    补写必须补观察/试探/交锋/代价/新线索
     │
     ▼
-8.5 风格校准 ───────── python novel_creation_promax/scripts/style_calibrator.py
+8.5 风格校准 ───────── python skills/novel-memory/skills/novel-memory/scripts/style_calibrator.py
     │                    偏差<0.3通过，0.3-0.5警告，≥0.5重写（exit code 1）
     │
     ▼
-9. 人物一致性 ──────── python novel_creation_promax/scripts/character_consistency_checker.py
+9. 人物一致性 ──────── python skills/novel-memory/skills/novel-memory/scripts/character_consistency_checker.py
     │                    无严重OOC警告方可继续
     │
     ▼
-10. 输出章节 + 生成摘要 → 记忆回填（novel-memory-pro sync-chapter）
+10. 输出章节 + 生成摘要 → 记忆回填（novel-memory sync-chapter）
 ```
 
 **优先级原则**：剧情逻辑 > 角色一致 > AI词清理。审计时按此顺序检查，AI词清理不能破坏前两者。
 
 **执行强制机制**：
 - PASS 1 必须在场景写作卡截断点停笔，蹭到下一章内容 = 本章作废。
+- 写前任务书必须由 `context-agent` 产出，主流程不得跳过并自行整理上下文。
+- `rule_stack.write_ready=false` 时禁止起草；先补齐真相文件 `open_questions` 或把非阻断项标为 `critical: false`。正文只能使用 `confirmed` 事实，`inferred` 必须标依据，`assumed` 禁止进入正文。
+- 审稿 JSON 必须由 `reviewer` 产出并通过 `tools/review_result.py validate`；契约无效或存在 blocker 时，quality 与 commit 阶段阻断。
 - 写正文前必须读取 `chapter_NNN_rule_stack.json` 和 `chapter_NNN_truth_brief.md`；人物、地点、势力、关系、资源、伏笔不得脱离真相文件。
 - 写正文后必须先审查 `truth_delta_candidates_chNNN.md`，再补齐 `chapter_NNN_truth_delta.json`；本章新增事实不写 delta = 记忆未回填 = 禁止交付。
 - 步骤4.5（GATE 检查）必须通过 `novel_creation_promax/scripts/writing_gate.py` 实际执行，exit code 1 = 回到 Pass 1 修复，不得跳过。
@@ -235,8 +257,8 @@ python novel_creation_promax/scripts/writing_gate.py --chapter {文件} --novel-
 | 时机 | 触发方式 | 执行模块 | 检查内容 | 失败处理 |
 |------|----------|----------|----------|----------|
 | **每章写完** | 自动 | `novel_creation_promax/scripts/post_write_audit.py` | AI词、字数、对话比、单行段、重复度 | 自动修复→重新审计 |
-| **每章写完** | 自动 | `novel_creation_promax/scripts/style_calibrator.py` | 风格DNA偏差 | 偏差≥0.3警告，≥0.5必须重写 |
-| **每章写完** | 自动 | `novel_creation_promax/scripts/character_consistency_checker.py` | 人物OOC检测 | 严重OOC必须修正 |
+| **每章写完** | 自动 | `skills/novel-memory/skills/novel-memory/scripts/style_calibrator.py` | 风格DNA偏差 | 偏差≥0.3警告，≥0.5必须重写 |
+| **每章写完** | 自动 | `skills/novel-memory/skills/novel-memory/scripts/character_consistency_checker.py` | 人物OOC检测 | 严重OOC必须修正 |
 | **每5章** | 自动 | `stages/04-outline/review-mechanism.md` | 定期复盘：漂移风险、伏笔堆积 | 输出复盘报告 |
 | **每10章** | 自动 | `novel_creation_promax/scripts/plot_continuity_checker.py` | 时间线、逻辑、伏笔回收 | 输出连贯性报告 |
 | **用户要求"评估"** | 手动 | `../knowledge_base/50_Quality/评估系统/内容评估.md` | 正文质量评级 | 输出评级报告 |
@@ -293,21 +315,21 @@ python novel_creation_promax/scripts/writing_gate.py --chapter {文件} --novel-
 
 ## 六、记忆系统声明
 
-**记忆系统唯一实现**：`novel-memory-pro/`
+**记忆系统唯一实现**：`skills/novel-memory/`
 
 所有记忆操作通过以下路径：
-- 脚本：`novel_creation_promax/novel-memory-pro/scripts/memory_manager.py`
-- 模板：`novel-memory-pro/references/`
-- Schema：`novel-memory-pro/assets/memory_structure.json`
+- 脚本：`skills/novel-memory/scripts/memory_manager.py`
+- 模板：`skills/novel-memory/references/`
+- Schema：`skills/novel-memory/assets/memory_structure.json`
 
-旧版 memory_manager 薄封装已废弃，请直接使用 `novel_creation_promax/novel-memory-pro/` 下的实现。
+旧版 memory_manager 薄封装已废弃，请直接使用 `skills/novel-memory/` 下的实现。
 
 **分工原则**：
 - 写作技能消费 `active_memory_pack`，不直接维护记忆
 - 记忆技能提供约束和回填，不替代写作技能写正文
 - 冲突时以用户确认过的大纲/正文为准，再修记忆
 
-详细集成流程见 `novel-memory-pro/references/integration-with-novel-creation.md`。
+详细集成流程见 `skills/novel-memory/references/integration-with-novel-creation.md`。
 
 ---
 
@@ -401,9 +423,9 @@ python novel_creation_promax/scripts/post_write_audit.py \
 |------|------|----------|
 | `novel_creation_promax/scripts/post_write_audit.py` | 每章审计 | 每章写完 |
 | `novel_creation_promax/scripts/writing_gate.py` | Pass 1→2 断点门禁 | 每章 PASS 1 完成后 |
-| `novel_creation_promax/scripts/style_dna_extractor.py` | 风格DNA提取 | 项目初始化 |
-| `novel_creation_promax/scripts/style_calibrator.py` | 风格校准 | 每章写完 |
-| `novel_creation_promax/scripts/character_consistency_checker.py` | 人物OOC检测 | 每章写完 |
+| `skills/novel-memory/scripts/style_dna_extractor.py` | 风格DNA提取 | 项目初始化 |
+| `skills/novel-memory/skills/novel-memory/scripts/style_calibrator.py` | 风格校准 | 每章写完 |
+| `skills/novel-memory/skills/novel-memory/scripts/character_consistency_checker.py` | 人物OOC检测 | 每章写完 |
 | `novel_creation_promax/scripts/plot_continuity_checker.py` | 剧情连贯性 | 每10章 |
 | `novel_creation_promax/scripts/novel_review_and_upgrade.py` | 完结复盘 | 完结时 |
 | `novel_creation_promax/scripts/generate_cover.py` | 封面生成 | 用户要求 |

@@ -26,7 +26,7 @@
 冲突时按以下顺序裁决：
 
 ```text
-用户明确确认 > 已发布正文 > novel_state.json > novel-memory-pro > draft_state > 模型推断
+用户明确确认 > 已发布正文 > novel_state.json > novel-memory > draft_state > 模型推断
 ```
 
 ## 禁止事项

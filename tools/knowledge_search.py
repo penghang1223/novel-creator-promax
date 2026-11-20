@@ -20,7 +20,7 @@ def main() -> int:
     parser.add_argument("query", nargs="?", help="检索词；不提供时只同步索引")
     parser.add_argument("--root", default=str(PROJECT_ROOT), help="项目根目录")
     parser.add_argument("--limit", type=int, default=8, help="最多返回条数")
-    parser.add_argument("--backend", choices=["lexical", "tfidf"], default="lexical", help="检索后端")
+    parser.add_argument("--backend", choices=["bm25", "lexical", "tfidf"], default="bm25", help="检索后端")
     parser.add_argument("--sync-only", action="store_true", help="只同步索引")
     args = parser.parse_args()
 

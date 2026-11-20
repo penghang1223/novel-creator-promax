@@ -1,5 +1,7 @@
 # AGENTS.md（插件源码仓库）
 
+> Claude Code 入口见 [CLAUDE.md](CLAUDE.md)；本文件是完整开发规则与红线。
+>
 > **这是 `novel-creator-pro` 插件的源码仓库，不是用户写作工作区。**
 >
 > - 运行时行为规则在 [`skills/`](skills/) 和 [`novel_creation_promax/`](novel_creation_promax/)。
@@ -11,7 +13,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **项目定位**：基于 Claude Code 的中文网文创作技能系统。核心由 markdown 技能定义 (`SKILL.md`) + Python 审计/记忆脚本 + Obsidian 知识库 + Playwright 浏览器自动发布组成。所有创作行为由 `novel_creation_promax/SKILL.md` 驱动。仓库提供 stdlib 回归测试、健康检查和 pre-commit hook，暂未接入远程 CI。
+> **项目定位**：基于 Claude Code 的中文网文创作技能系统。核心由 markdown 技能定义 (`SKILL.md`) + Python 审计/记忆脚本 + Obsidian 知识库 + Playwright 浏览器自动发布组成。所有创作行为由 `skills/novel-creator/SKILL.md` 驱动。仓库提供 stdlib 回归测试、行为评测、健康检查和 pre-commit hook，暂未接入远程 CI。
 >
 > **加载策略**：本文件只放**行为规则和红线**，常驻上下文。命令语法、工具清单、外部集成都移到 [`docs/`](docs/) 下按需读取，见文末「文档索引」。
 
@@ -57,13 +59,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 自动触发规则
 
-所有创作相关自动触发规则统一由 [`novel_creation_promax/SKILL.md`](novel_creation_promax/SKILL.md) 定义；功能编号与模式路由见 [`MODE_REGISTRY.md`](novel_creation_promax/MODE_REGISTRY.md)。CLAUDE.md 不再维护这些规则的副本。
+所有创作相关自动触发规则统一由 [`skills/novel-creator/SKILL.md`](skills/novel-creator/SKILL.md) 定义；功能编号与模式路由见 [`MODE_REGISTRY.md`](novel_creation_promax/MODE_REGISTRY.md)。CLAUDE.md 不再维护这些规则的副本。
 
 ### 默认工作流
 
 1. **短篇/自由创作**：直接调用自由创作流程，无需菜单选择。
 2. **长篇第 1 章**：立项 → `project_bootstrap_pipeline.py init` → 记忆初始化 → 大纲/细纲/小说信息 → `seal` → 正文；**`seal` 未通过禁止写第 1 章**。
-3. **长篇续写**：读细纲 + 上一章 → 细纲-设定交叉验证 → `write_pipeline.py pre`（知识包/记忆包/9 问/骨架）→ 生成场景写作卡 → **Pass 1 剧情稿**（不管 AI 词，截断点停笔）→ `writing_gate.py` → **Pass 2 AI 词清理**（只改词汇，不动叙事）→ `write_pipeline.py post`（审计→真相→质量→记忆→commit）。每章详细强制步骤以 [`orchestrator.md`](novel_creation_promax/references/orchestrator.md) 为准。
+3. **长篇续写**：读细纲 + 上一章 → 细纲-设定交叉验证 → `write_pipeline.py pre`（知识包/记忆包/9 问/骨架）→ `context-agent` 五段任务书 → 生成场景写作卡 → **Pass 1 剧情稿**（不管 AI 词，截断点停笔）→ `writing_gate.py` → **Pass 2 AI 词清理**（只改词汇，不动叙事）→ `reviewer` 审稿 JSON → `write_pipeline.py post`（审计→真相→质量→记忆→commit）。每章详细强制步骤以 [`orchestrator.md`](novel_creation_promax/references/orchestrator.md) 为准。
 4. **风格/人物/设定问题**：读取对应知识库文档后回答。
 
 ### 细纲遵守与偏离协议
@@ -83,7 +85,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 行为准则
 
 - 内部思考使用英文，所有回复使用中文
-- 长篇创作必须配合 `novel-memory-pro` 子技能执行记忆初始化、唤醒、回填
+- 长篇创作必须配合 `novel-memory` 技能执行记忆初始化、唤醒、回填
 - 每次修改/润色/审稿后自动记录到 `novel_state.json` 的 `revision_history`
 - **知识库优先**：创作知识统一从 `knowledge_base/` 读取，`novel_creation_promax/references/` 为原始来源，`knowledge_base/` 为优化后的结构
 
@@ -95,13 +97,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 所有小说统一输出到 `novel_output/{平台名}/`，按平台分类（番茄、起点、知乎、七猫等），每本小说一个独立子目录
 - 平台判断：用户提到哪个平台就放哪个目录，不指定默认放"番茄"
+- `创意/` 与 `素材/调研/` 是本次运行产物；长期沉淀写入工作区 `创意库/`。不要写入 `${CLAUDE_PLUGIN_ROOT}/knowledge_base/`（插件资产只读，更新会丢失）。
 
 ```text
 小说名/
 ├── 创意/ 设定/ 结构/ 细纲/   # 长篇必需，短篇可省略
 ├── 正文/                     # 命名：{三位数字章节号}_{标题}
 ├── 摘要/                     # chapter_NNN_summary.json / passport / knowledge_pack
-├── 记忆/                     # novel-memory-pro 生成的记忆 JSON
+├── 记忆/                     # novel-memory 生成的记忆 JSON
 ├── 素材/                     # 封面、审查报告；reports/、state_backups/
 ├── 小说信息.md               # 发布用信息（同时复制一份到 素材/）
 ├── outline.md                # 总大纲（短篇/自由创作）
@@ -124,7 +127,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Structure
 
-- `novel_creation_promax/` — **当前活跃版本**：主技能 `SKILL.md` + `MODE_REGISTRY.md`（模式唯一真源）+ `novel-memory-pro/` 记忆子技能 + `review-skill/` 审稿子技能
+- `skills/` — **插件技能唯一根目录**：路由 `novel-creator`、立项、写章、记忆、审稿、发布、知识摄入、诊断和辅助技能；每个技能一个目录，`SKILL.md`、`scripts/`、`references/`、`assets/` 都在目录内
+- `novel_creation_promax/` — 核心库与共享文档：`MODE_REGISTRY.md`（模式唯一真源）、`core/`、`scripts/`（流水线）、`references/`（共享参考）、`docs/`、`assets/`；不再放 `SKILL.md`
 - `novel_creation_promax/core/` — 共享确定性工具包（`jsonio` / `paths` / `passport` / `knowledge_routes` / `project_registry` / `knowledge_lint`），脚本应复用而非自行实现
 - `novel_creation_promax/docs/` — 架构文档（`ARCHITECTURE.md`、`ARTIFACTS.md`、`DATA_ACCESS_LEVELS.md`、`PIPELINE.md`）
 - `auto_publish/` — Playwright 自动发布（番茄/起点/知乎/七猫）
@@ -140,6 +144,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **一级 = 绝对禁止**：原创性/视角/性别
 - **二级 = 质量约束**：风格漂移/OOC/剧情矛盾
+- **状态文件单一写者**：`novel_state.json`、passport、commit、真相文件只能由流水线脚本写入；禁止手改或用对话替代。交付前运行 `python3 tools/verify_project_integrity.py --novel-dir "{小说目录}" --json --strict`。
 - **三级 = 质量优化**：字数/结构/悬念
 
 9 问写前评分 ≥ 70 分方可动笔（详见 [`章节前检查.md`](knowledge_base/50_Quality/红线检查/章节前检查.md)）。

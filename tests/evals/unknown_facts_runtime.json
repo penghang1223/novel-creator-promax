@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "name": "unknown-facts-runtime",
+  "cases": [
+    {
+      "id": "pre-write-blocks-critical-unknown-facts",
+      "type": "command_sequence",
+      "steps": [
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "import shutil; from pathlib import Path; p=Path('{tmp}/番茄/测试书/摘要'); p.mkdir(parents=True, exist_ok=True); (p.parent/'正文').mkdir(parents=True, exist_ok=True); shutil.copy('{fixtures}/rule_stack_blocked.json', p/'chapter_001_rule_stack.json')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "novel_creation_promax/scripts/pre_write_check.py",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1",
+            "--title",
+            "第1章 测试",
+            "--answers-file",
+            "{fixtures}/write_answers.json"
+          ],
+          "expect_exit": 1,
+          "stdout_contains": [
+            "critical 未知事实"
+          ]
+        },
+        {
+          "args": [
+            "{python}",
+            "-c",
+            "import shutil; from pathlib import Path; p=Path('{tmp}/番茄/测试书/摘要'); p.mkdir(parents=True, exist_ok=True); shutil.copy('{fixtures}/rule_stack_clear.json', p/'chapter_001_rule_stack.json')"
+          ],
+          "expect_exit": 0
+        },
+        {
+          "args": [
+            "{python}",
+            "novel_creation_promax/scripts/pre_write_check.py",
+            "--novel-dir",
+            "{tmp}/番茄/测试书",
+            "--chapter",
+            "1",
+            "--title",
+            "第1章 测试",
+            "--answers-file",
+            "{fixtures}/write_answers.json"
+          ],
+          "expect_exit": 0,
+          "stdout_contains": [
+            "写前检查通过"
+          ]
+        }
+      ]
+    }
+  ]
+}

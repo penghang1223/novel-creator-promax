@@ -21,9 +21,11 @@ for entry in (PROJECT_ROOT, SCRIPTS_DIR):
 
 import write_pipeline as wp  # noqa: E402
 
-from novel_creation_promax.core.chapter_commit import commit_path  # noqa: E402
+from novel_creation_promax.core.chapter_commit import commit_path, verify_chapter_commit  # noqa: E402
 from novel_creation_promax.core.jsonio import load_json, save_json  # noqa: E402
 from novel_creation_promax.core.passport import init_passport, passport_path, save_passport  # noqa: E402
+from novel_creation_promax.core.review_result import chapter_target, save_review_result  # noqa: E402
+from novel_creation_promax.core.revision_control import current_revision  # noqa: E402
 
 
 def make_project(tmp: str, *, gate: bool = True) -> Path:
@@ -67,6 +69,40 @@ def write_passport(novel: Path, chapter: int, chapter_file: Path | None, **pipel
         passport["word_count"] = 360
     save_passport(novel, chapter, passport)
     return passport
+
+
+def write_review(novel: Path, chapter: int = 1, *, blockers: int = 0) -> Path:
+    issues = []
+    for index in range(blockers):
+        issues.append(
+            {
+                "id": f"R-B{index + 1:02d}",
+                "severity": "blocker",
+                "assessment": "issue",
+                "dimension": "structure",
+                "location": "第1段",
+                "evidence": "正文证据",
+                "impact": "连续性断裂",
+                "repair": "补写过场",
+                "source_refs": [{"quote": "这是一段正文。"}],
+            }
+        )
+    payload = {
+        "schema_version": "1.0",
+        "chapter": chapter,
+        "mode": "single",
+        "target": chapter_target(novel, chapter),
+        "dimensions": {
+            name: {"score": 8, "summary": "正常", "issues": []}
+            for name in ("dialogue", "coolpoint", "structure", "anti_ai", "reading_power")
+        },
+        "issues": issues,
+        "blocking_count": blockers,
+        "status": "blocked" if blockers else "pass",
+        "grade": "A",
+        "summary": "测试审稿",
+    }
+    return save_review_result(novel, chapter, payload)
 
 
 def commit_args(novel: Path, chapter: int = 1) -> argparse.Namespace:
@@ -217,9 +253,140 @@ class CommitPhaseTest(unittest.TestCase):
             self.assertEqual(passport["commit"]["status"], "accepted")
             self.assertEqual(passport["pipeline_result"], "pass")
             self.assertTrue(passport["commit"]["id"])
+            commit_ok, commit_detail = verify_chapter_commit(novel, 1)
+            self.assertTrue(commit_ok, commit_detail)
             state = load_json(novel / "novel_state.json", {})
             self.assertEqual(state["last_completed_chapter"], 1)
             self.assertEqual(state["chapters"]["001"]["audit_status"], "pass")
+
+    def test_blocks_commit_when_review_has_blocker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_project(tmp)
+            chapter_file = write_chapter(novel)
+            audit_file = novel / "素材" / "audit_ch001.json"
+            save_json(audit_file, {"chapter": 1, "status": "pass"})
+            save_json(novel / "摘要" / "chapter_001_truth_delta.json", {"chapter": 1})
+            save_json(novel / "素材" / "truth_delta_ch001.json", {"chapter": 1, "status": "pass"})
+            save_json(novel / "素材" / "truth_apply_ch001.json", {"chapter": 1, "status": "pass"})
+            passport = write_passport(
+                novel,
+                1,
+                chapter_file,
+                writing_gate="pass",
+                post_write_audit="pass",
+                normalizer="pass",
+                truth_delta="pass",
+                truth_sync="pass",
+            )
+            passport["inputs"]["audit_report"] = "素材/audit_ch001.json"
+            save_passport(novel, 1, passport)
+            write_review(novel, 1, blockers=1)
+
+            with mock.patch.object(wp, "ensure_truth_files", return_value=True):
+                ok = wp.post_commit_phase(commit_args(novel))
+
+            self.assertFalse(ok)
+            self.assertFalse(commit_path(novel, 1).exists())
+            saved = load_json(passport_path(novel, 1), {})
+            self.assertEqual(saved["pipeline"]["review_result"], "fail")
+            self.assertEqual(saved["commit"]["status"], "blocked")
+
+    def test_blocks_commit_when_tribunal_review_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_project(tmp)
+            chapter_file = write_chapter(novel)
+            state = load_json(novel / "novel_state.json", {})
+            state["quality_mode"] = "tribunal"
+            save_json(novel / "novel_state.json", state)
+            audit_file = novel / "素材" / "audit_ch001.json"
+            save_json(audit_file, {"chapter": 1, "status": "pass"})
+            save_json(novel / "摘要" / "chapter_001_truth_delta.json", {"chapter": 1})
+            save_json(novel / "素材" / "truth_delta_ch001.json", {"chapter": 1, "status": "pass"})
+            save_json(novel / "素材" / "truth_apply_ch001.json", {"chapter": 1, "status": "pass"})
+            passport = write_passport(
+                novel,
+                1,
+                chapter_file,
+                writing_gate="pass",
+                post_write_audit="pass",
+                normalizer="pass",
+                truth_delta="pass",
+                truth_sync="pass",
+                quality_review="pass",
+            )
+            passport["inputs"]["audit_report"] = "素材/audit_ch001.json"
+            save_passport(novel, 1, passport)
+
+            with mock.patch.object(wp, "ensure_truth_files", return_value=True):
+                ok = wp.post_commit_phase(commit_args(novel))
+
+            self.assertFalse(ok)
+            self.assertFalse(commit_path(novel, 1).exists())
+
+    def test_commit_records_chapter_revision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_project(tmp)
+            chapter_file = write_chapter(novel)
+            audit_file = novel / "素材" / "audit_ch001.json"
+            save_json(audit_file, {"chapter": 1, "status": "pass"})
+            save_json(novel / "摘要" / "chapter_001_truth_delta.json", {"chapter": 1})
+            save_json(novel / "素材" / "truth_delta_ch001.json", {"chapter": 1, "status": "pass"})
+            save_json(novel / "素材" / "truth_apply_ch001.json", {"chapter": 1, "status": "pass"})
+            passport = write_passport(
+                novel,
+                1,
+                chapter_file,
+                writing_gate="pass",
+                post_write_audit="pass",
+                normalizer="pass",
+                truth_delta="pass",
+                truth_sync="pass",
+            )
+            passport["inputs"]["audit_report"] = "素材/audit_ch001.json"
+            save_passport(novel, 1, passport)
+
+            with mock.patch.object(wp, "ensure_truth_files", return_value=True):
+                ok = wp.post_commit_phase(commit_args(novel))
+
+            self.assertTrue(ok)
+            revision = current_revision(novel, 1)
+            self.assertIsNotNone(revision)
+            self.assertEqual(revision["source"], "writing")
+            self.assertEqual(revision["version"], 1)
+            saved = load_json(passport_path(novel, 1), {})
+            self.assertEqual(saved["revision"]["revision_id"], revision["revision_id"])
+
+    def test_commit_binds_review_result_when_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            novel = make_project(tmp)
+            chapter_file = write_chapter(novel)
+            audit_file = novel / "素材" / "audit_ch001.json"
+            save_json(audit_file, {"chapter": 1, "status": "pass"})
+            save_json(novel / "摘要" / "chapter_001_truth_delta.json", {"chapter": 1})
+            save_json(novel / "素材" / "truth_delta_ch001.json", {"chapter": 1, "status": "pass"})
+            save_json(novel / "素材" / "truth_apply_ch001.json", {"chapter": 1, "status": "pass"})
+            passport = write_passport(
+                novel,
+                1,
+                chapter_file,
+                writing_gate="pass",
+                post_write_audit="pass",
+                normalizer="pass",
+                truth_delta="pass",
+                truth_sync="pass",
+            )
+            passport["inputs"]["audit_report"] = "素材/audit_ch001.json"
+            save_passport(novel, 1, passport)
+            write_review(novel, 1)
+
+            with mock.patch.object(wp, "ensure_truth_files", return_value=True):
+                ok = wp.post_commit_phase(commit_args(novel))
+
+            self.assertTrue(ok)
+            commit = load_json(commit_path(novel, 1), {})
+            artifact = commit["artifacts"]["review_result"]
+            self.assertTrue(artifact["exists"])
+            self.assertTrue(artifact["required"])
 
 
 if __name__ == "__main__":

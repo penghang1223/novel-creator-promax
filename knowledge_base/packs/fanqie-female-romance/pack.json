@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "pack_id": "fanqie-female-romance",
+  "version": "1.0.0",
+  "display_name": "番茄女频现言",
+  "signals": {
+    "platform": "番茄",
+    "genre_tags": ["现言", "婚恋", "职场", "复仇", "大女主", "都市"]
+  },
+  "capabilities": ["dialogue_heavy", "romance", "revenge", "emotional_payoff"],
+  "routes": {
+    "dialogue": {
+      "name": "对话密集",
+      "trigger_capabilities": ["dialogue_heavy", "romance"],
+      "files": [
+        "knowledge_base/40_Writing/03_人物与对话/对话质感完整框架.md",
+        "knowledge_base/40_Writing/03_人物与对话/AI对话丰满化技法.md"
+      ]
+    },
+    "high_pressure": {
+      "name": "高压/反击/情绪兑现",
+      "trigger_capabilities": ["revenge", "emotional_payoff"],
+      "files": [
+        "knowledge_base/40_Writing/04_场景与描写/潜台词与张力技法.md",
+        "knowledge_base/40_Writing/04_场景与描写/爽点设计.md"
+      ]
+    },
+    "opening": {
+      "name": "开篇",
+      "trigger_capabilities": [],
+      "files": [
+        "knowledge_base/40_Writing/01_开篇技巧/黄金三章技巧.md",
+        "knowledge_base/40_Writing/01_开篇技巧/开头钩子库.md"
+      ]
+    },
+    "rhythm": {
+      "name": "节奏",
+      "trigger_capabilities": ["emotional_payoff"],
+      "files": [
+        "knowledge_base/40_Writing/02_节奏与结构/每章节奏公式与卡章技巧.md"
+      ]
+    }
+  },
+  "pitfalls": "pitfalls.md"
+}

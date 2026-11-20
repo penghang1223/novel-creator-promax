@@ -137,7 +137,7 @@
 生成命令：
 
 ```bash
-python novel_creation_promax/novel-memory-pro/scripts/memory_manager.py \
+python skills/novel-memory/scripts/memory_manager.py \
   scene-card \
   --chapter N \
   --memory-dir novel_output/{平台}/{小说名}/memory

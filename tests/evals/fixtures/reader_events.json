@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "kind": "events",
+  "records": [
+    {
+      "id": "evt_001",
+      "name": "旧案",
+      "status": "done",
+      "cause": "a",
+      "effect": "读者已经知道旧案",
+      "reader_known": true,
+      "reveal_status": "已揭示",
+      "reveal_chapter": 3
+    },
+    {
+      "id": "evt_002",
+      "name": "真凶",
+      "status": "planned",
+      "cause": "b",
+      "effect": "真凶是主角父亲",
+      "reader_known": false,
+      "reveal_status": "未揭示",
+      "reveal_chapter": 20
+    }
+  ]
+}

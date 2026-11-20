@@ -15,13 +15,17 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = PROJECT_ROOT / "novel_creation_promax"
-SUBSKILLS = (
-    "novel-memory-pro",
-    "review-skill",
-    "project-planning",
-    "publishing",
-    "knowledge-ingestion",
+ROUTER_SKILL = PROJECT_ROOT / "skills" / "novel-creator" / "SKILL.md"
+SUBSKILLS = ()
+SKILL_NAMES = (
+    "novel-project-planning",
+    "novel-memory",
+    "novel-review",
+    "novel-publish",
+    "novel-knowledge-ingestion",
 )
+
+ALLOWED_ENTRY_TYPES = {"skill", "doc", "kb", "script"}
 
 
 class Check:
@@ -66,7 +70,6 @@ def check_frontmatter(c: Check, path: Path) -> None:
 
 def check_required_files(c: Check) -> None:
     files = [
-        "SKILL.md",
         "MODE_REGISTRY.md",
         "agents/openai.yaml",
         "docs/ARCHITECTURE.md",
@@ -76,6 +79,8 @@ def check_required_files(c: Check) -> None:
         "references/orchestrator.md",
         "references/trigger-rules.md",
         "references/knowledge-pack-workflow.md",
+        "references/review-result-schema.md",
+        "core/review_result.py",
         "scripts/audit_pipeline.py",
         "scripts/pipeline_utils.py",
         "scripts/project_bootstrap_pipeline.py",
@@ -87,12 +92,12 @@ def check_required_files(c: Check) -> None:
             c.ok(item)
         else:
             c.fail(f"缺失 {item}")
-    for name in SUBSKILLS:
-        path = SKILL_ROOT / name / "SKILL.md"
+    for name in SKILL_NAMES:
+        path = PROJECT_ROOT / "skills" / name / "SKILL.md"
         if path.exists():
-            c.ok(f"{name}/SKILL.md")
+            c.ok(f"skills/{name}/SKILL.md")
         else:
-            c.fail(f"缺失 {name}/SKILL.md")
+            c.fail(f"缺失 skills/{name}/SKILL.md")
 
 
 def extract_markdown_refs(text: str) -> list[str]:
@@ -106,7 +111,7 @@ def extract_markdown_refs(text: str) -> list[str]:
         if value.startswith(("python ", "json", "text", "bash")):
             continue
         if (
-            value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "scripts/", "novel-memory-pro/", "review-skill/", "knowledge_base/", "skills/", "commands/", "hooks/", "tools/", "AGENTS.md", "CLAUDE.md"))
+            value.startswith(("novel_creation_promax/", "references/", "docs/", "assets/", "scripts/", "knowledge_base/", "skills/", "commands/", "hooks/", "tools/", "AGENTS.md", "CLAUDE.md"))
             or re.search(r"\.(md|json|yaml|py)$", value)
         ):
             refs.append(value)
@@ -182,20 +187,53 @@ def parse_mode_ids(path: Path) -> dict[int, str]:
             mode_id = int(cells[0])
         except ValueError:
             continue
-        ids[mode_id] = cells[2] if len(cells) > 2 else ""
+        ids[mode_id] = cells[1] if len(cells) > 1 else ""
     return ids
+
+
+def parse_mode_entries(path: Path) -> list[tuple[int, str, str, str]]:
+    """Return ``(mode_id, mode_key, entry_type, entry)`` for each mode row."""
+    rows: list[tuple[int, str, str, str]] = []
+    for line in read_text(path).splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 8:
+            continue
+        try:
+            mode_id = int(cells[0])
+        except ValueError:
+            continue
+        rows.append((mode_id, cells[1], cells[4], cells[5]))
+    return rows
+
+
+def entry_path_exists(ref: str) -> bool:
+    target = ref.strip().strip("`")
+    if not target:
+        return False
+    return (PROJECT_ROOT / target).exists() or (SKILL_ROOT / target).exists()
+
+
+def check_skill_locations(c: Check) -> None:
+    strays = sorted((PROJECT_ROOT / "novel_creation_promax").rglob("SKILL.md"))
+    if strays:
+        for path in strays:
+            c.fail(f"SKILL.md 不应嵌套在 novel_creation_promax: {path.relative_to(PROJECT_ROOT)}")
+    else:
+        c.ok("SKILL.md 仅存在于 skills/")
 
 
 def check_mode_registry(c: Check) -> None:
     registry = SKILL_ROOT / "MODE_REGISTRY.md"
-    skill = SKILL_ROOT / "SKILL.md"
+    skill = ROUTER_SKILL
     if not registry.exists() or not skill.exists():
         return
     mode_ids = parse_mode_ids(registry)
-    expected = set(range(17))
+    expected = set(range(18))
     actual = set(mode_ids)
     if actual == expected:
-        c.ok("MODE_REGISTRY mode_id 连续 0-16")
+        c.ok("MODE_REGISTRY mode_id 连续 0-17")
     else:
         c.fail(f"MODE_REGISTRY mode_id 不连续: {sorted(actual)}")
 
@@ -205,18 +243,39 @@ def check_mode_registry(c: Check) -> None:
     else:
         c.fail("SKILL.md 缺少 MODE_REGISTRY 路由入口")
 
+    entries = parse_mode_entries(registry)
+    if len(entries) != len(mode_ids):
+        c.fail(f"MODE_REGISTRY 模式行缺少 entry_type: 解析 {len(entries)}/{len(mode_ids)}")
+        return
+    problems = 0
+    for mode_id, _mode_key, entry_type, entry in entries:
+        if entry_type not in ALLOWED_ENTRY_TYPES:
+            c.fail(f"模式 {mode_id} entry_type 非法: {entry_type}")
+            problems += 1
+            continue
+        match = re.search(r"`([^`]+)`", entry)
+        if not match:
+            c.fail(f"模式 {mode_id} 必读入口缺少反引号路径: {entry}")
+            problems += 1
+            continue
+        if not entry_path_exists(match.group(1)):
+            c.fail(f"模式 {mode_id} 必读入口不存在: {match.group(1)}")
+            problems += 1
+    if not problems:
+        c.ok(f"MODE_REGISTRY 必读入口 {len(entries)} 项均有 entry_type 且路径存在")
+
 
 def check_skill_contracts(c: Check) -> None:
-    main_skill = SKILL_ROOT / "SKILL.md"
+    main_skill = ROUTER_SKILL
     if not main_skill.exists():
         return
     main_text = read_text(main_skill)
     routes = {
-        "project-planning/SKILL.md": "立项与大纲",
-        "novel-memory-pro/SKILL.md": "记忆",
-        "review-skill/SKILL.md": "审稿",
-        "publishing/SKILL.md": "发布",
-        "knowledge-ingestion/SKILL.md": "知识摄入",
+        "skills/novel-project-planning/SKILL.md": "立项与大纲",
+        "skills/novel-memory/SKILL.md": "记忆",
+        "skills/novel-review/SKILL.md": "审稿",
+        "skills/novel-publish/SKILL.md": "发布",
+        "skills/novel-knowledge-ingestion/SKILL.md": "知识摄入",
         "references/orchestrator.md": "章节状态机",
     }
     for ref, label in routes.items():
@@ -225,25 +284,34 @@ def check_skill_contracts(c: Check) -> None:
         else:
             c.fail(f"主技能缺少路由: {label} ({ref})")
 
-    for name in SUBSKILLS:
-        path = SKILL_ROOT / name / "SKILL.md"
+    for name in SKILL_NAMES:
+        path = PROJECT_ROOT / "skills" / name / "SKILL.md"
         if not path.exists():
+            c.fail(f"缺失 skills/{name}/SKILL.md")
             continue
         text = read_text(path)
         if "## 边界" not in text:
-            c.fail(f"{name}/SKILL.md 缺少职责边界")
+            c.fail(f"skills/{name}/SKILL.md 缺少职责边界")
         elif "## 禁止事项" not in text:
-            c.fail(f"{name}/SKILL.md 缺少禁止事项")
+            c.fail(f"skills/{name}/SKILL.md 缺少禁止事项")
         else:
-            c.ok(f"{name}/SKILL.md 职责边界")
+            c.ok(f"skills/{name}/SKILL.md 职责边界")
 
 
 def check_bad_paths(c: Check) -> None:
-    paths = [SKILL_ROOT / "SKILL.md", SKILL_ROOT / "references" / "orchestrator.md", SKILL_ROOT / "review-skill" / "SKILL.md"]
+    paths = [
+        ROUTER_SKILL,
+        SKILL_ROOT / "references" / "orchestrator.md",
+        PROJECT_ROOT / "skills" / "novel-review" / "SKILL.md",
+    ]
     bad_patterns = [
         (r"python scripts/(?!sync_to_fanqie)", "旧脚本路径 python scripts/"),
         (r"python novel-memory-pro/", "旧记忆路径 python novel-memory-pro/"),
         (r"`scripts/[^`]+\.py`", "裸 scripts/*.py 引用"),
+        (
+            r"novel_creation_promax/(novel-memory-pro|project-planning|review-skill|publishing|knowledge-ingestion)/",
+            "旧核心子技能路径",
+        ),
     ]
     for path in paths:
         if not path.exists():
@@ -274,6 +342,7 @@ def check_command_aliases(c: Check) -> None:
             "audit.md",
             "doctor.md",
             "workflow.md",
+            "diagnose.md",
         ]
     else:
         commands_dir = PROJECT_ROOT / ".claude" / "commands"
@@ -296,33 +365,74 @@ def check_command_aliases(c: Check) -> None:
             c.fail(f"缺失 {label}/{name}")
 
 
+AGENT_FILES = ("context-agent.md", "reviewer.md", "data-agent.md")
+
+
+def check_agents(c: Check) -> None:
+    for name in AGENT_FILES:
+        path = PROJECT_ROOT / "agents" / name
+        if not path.exists():
+            c.fail(f"缺失 agents/{name}")
+            continue
+        text = read_text(path)
+        if not text.startswith("---\n"):
+            c.fail(f"agents/{name} 缺少 frontmatter")
+            continue
+        end = text.find("\n---", 4)
+        if end == -1:
+            c.fail(f"agents/{name} frontmatter 未闭合")
+            continue
+        fm = text[4:end]
+        missing = [key for key in ("name:", "description:", "tools:") if key not in fm]
+        if missing:
+            c.fail(f"agents/{name} 缺少 {', '.join(missing)}")
+            continue
+        tools_line = next((line for line in fm.splitlines() if line.strip().startswith("tools:")), "")
+        if any(tool in tools_line for tool in ("Write", "Edit")):
+            c.fail(f"agents/{name} 不应拥有 Write/Edit 权限")
+        else:
+            c.ok(f"agents/{name} frontmatter + 只读权限")
+    cli = PROJECT_ROOT / "tools" / "review_result.py"
+    if cli.exists():
+        c.ok("tools/review_result.py")
+    else:
+        c.fail("缺失 tools/review_result.py")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="novel_creation_promax skill 自检")
     parser.parse_args()
 
     c = Check()
     print("== frontmatter ==")
-    check_frontmatter(c, SKILL_ROOT / "SKILL.md")
-    for name in SUBSKILLS:
-        check_frontmatter(c, SKILL_ROOT / name / "SKILL.md")
+    check_frontmatter(c, ROUTER_SKILL)
+    for name in SKILL_NAMES:
+        check_frontmatter(c, PROJECT_ROOT / "skills" / name / "SKILL.md")
 
     print("\n== required files ==")
     check_required_files(c)
 
+    print("\n== agents ==")
+    check_agents(c)
+
     print("\n== references ==")
     for file in [
-        "SKILL.md",
         "MODE_REGISTRY.md",
         "docs/ARCHITECTURE.md",
         "docs/PIPELINE.md",
         "docs/ARTIFACTS.md",
         "docs/DATA_ACCESS_LEVELS.md",
-        *[f"{name}/SKILL.md" for name in SUBSKILLS],
     ]:
         check_refs(c, SKILL_ROOT / file)
+    check_refs(c, ROUTER_SKILL)
+    for name in SKILL_NAMES:
+        check_refs(c, PROJECT_ROOT / "skills" / name / "SKILL.md")
 
     print("\n== skill contracts ==")
     check_skill_contracts(c)
+
+    print("\n== skill locations ==")
+    check_skill_locations(c)
 
     print("\n== mode registry ==")
     check_mode_registry(c)

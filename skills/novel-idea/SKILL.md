@@ -63,17 +63,47 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/idea_score.py" --input "{创意卡JSON}" --
 - 60–74：可立项，但需补强
 - < 60：不推荐立项，说明原因
 
-## 输出
+## 输出位置
 
 使用模板：
 
 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/templates/idea_card.md`
 
-写入工作区：
+| 产物 | 路径 |
+|---|---|
+| 创意卡 | `${CLAUDE_PROJECT_DIR}/创意/创意卡_{YYYY-MM-DD}.md` |
+| 五维评分 JSON | `${CLAUDE_PROJECT_DIR}/创意/scores/` |
 
-```text
-${CLAUDE_PROJECT_DIR}/创意/创意卡_{YYYY-MM-DD}.md
+**不要写入** `${CLAUDE_PLUGIN_ROOT}/knowledge_base/`。插件知识库是只读资产，更新时会被替换。
+
+## 长期创意库
+
+查重、归档、索引和搜索使用 `idea-library` 技能；脚本入口与目录约定如下。
+
+工作区有一个独立的长期创意库：`${CLAUDE_PROJECT_DIR}/创意库/`。
+
+| 层 | 路径 | 作用 |
+|---|---|---|
+| 本次运行产物 | `${CLAUDE_PROJECT_DIR}/创意/` | 本轮生成的创意卡和评分 |
+| 长期创意库 | `${CLAUDE_PROJECT_DIR}/创意库/` | 去重、带 ID、可搜索的沉淀库 |
+
+生成前先查重：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/idea_library.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  search --query "{平台} {题材}" --json
 ```
+
+用户选定后归档（批量创意卡用 `--split`，每个 `## N.` 拆成独立条目）：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/idea_library.py" --workspace "${CLAUDE_PROJECT_DIR}" \
+  archive-idea --file "${CLAUDE_PROJECT_DIR}/创意/创意卡_{YYYY-MM-DD}.md" \
+  --platform "{平台}" --genre "{题材}" --split --status candidate
+```
+
+库索引：`${CLAUDE_PROJECT_DIR}/创意库/_INDEX.md`；机器索引：`_INDEX.json`。
+库是长期沉淀，`创意/` 是本次运行产物；归档只复制，不删除原始文件。
 
 报告结构：
 

@@ -178,5 +178,64 @@ class WorkflowTest(unittest.TestCase):
             self.assertEqual(state["stage"], "")
 
 
+def add_book(workspace: Path, name: str = "书一", platform: str = "番茄") -> Path:
+    novel = workspace / "novel_output" / platform / name
+    novel.mkdir(parents=True, exist_ok=True)
+    write_json(
+        novel / "novel_state.json",
+        {"title": name, "platform": platform, "current_chapter": 0},
+    )
+    return novel
+
+
+class PerNovelWorkflowTest(unittest.TestCase):
+    def test_each_book_has_independent_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = make_workspace(tmp)
+            first = add_book(workspace, "书一")
+            second = add_book(workspace, "书二")
+
+            self.assertEqual(
+                run(workspace, "start", "--platform", "番茄", "--genre", "都市", "--novel-dir", str(first)).returncode,
+                0,
+            )
+            self.assertEqual(
+                run(workspace, "start", "--platform", "番茄", "--genre", "玄幻", "--novel-dir", str(second)).returncode,
+                0,
+            )
+            add_research(workspace)
+            advanced = run(workspace, "advance", "--to", "research", "--novel-dir", str(first))
+            self.assertEqual(advanced.returncode, 0, advanced.stderr)
+
+            first_status = json.loads(run(workspace, "status", "--json", "--novel-dir", str(first)).stdout)
+            second_status = json.loads(run(workspace, "status", "--json", "--novel-dir", str(second)).stdout)
+            self.assertEqual(first_status["stage"], "research")
+            self.assertEqual(second_status["stage"], "")
+
+            overview = json.loads(run(workspace, "status", "--json").stdout)
+            self.assertEqual(len(overview["books"]), 2)
+            by_title = {item["title"]: item for item in overview["books"]}
+            self.assertEqual(by_title["书一"]["stage"], "research")
+            self.assertEqual(by_title["书二"]["stage"], "")
+
+    def test_migrate_legacy_global_workflow(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = make_workspace(tmp)
+            book = add_book(workspace, "书一")
+
+            run(workspace, "start", "--platform", "番茄", "--genre", "都市")
+            add_research(workspace)
+            run(workspace, "advance", "--to", "research", "--novel-dir", str(book))
+
+            migrated = run(workspace, "migrate", "--novel-dir", str(book))
+            self.assertEqual(migrated.returncode, 0, migrated.stderr)
+            per_novel = json.loads((book / "摘要" / "workflow.json").read_text(encoding="utf-8"))
+            self.assertEqual(per_novel["stage"], "research")
+            self.assertTrue((workspace / "novel_output" / "_workspace" / "workflow.legacy.json").is_file())
+
+            status = json.loads(run(workspace, "status", "--json", "--novel-dir", str(book)).stdout)
+            self.assertEqual(status["stage"], "research")
+
+
 if __name__ == "__main__":
     unittest.main()

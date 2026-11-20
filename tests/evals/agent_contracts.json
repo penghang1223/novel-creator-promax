@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "name": "agent-contracts",
+  "cases": [
+    {
+      "id": "agents-exist-and-read-only",
+      "type": "agent_frontmatter",
+      "dir": "agents",
+      "required_agents": [
+        "context-agent",
+        "reviewer",
+        "data-agent"
+      ],
+      "forbidden_tools": [
+        "Write",
+        "Edit"
+      ]
+    },
+    {
+      "id": "context-agent-five-sections",
+      "type": "text_contract",
+      "path": "agents/context-agent.md",
+      "required": [
+        "开篇委托",
+        "这章的故事",
+        "这章的人物",
+        "怎么写更顺",
+        "收在哪里",
+        "BLOCKER",
+        "截断点"
+      ],
+      "forbidden": [
+        "你可以写文件",
+        "允许写入"
+      ]
+    },
+    {
+      "id": "reviewer-strict-json-schema",
+      "type": "text_contract",
+      "path": "agents/reviewer.md",
+      "required": [
+        "blocking_count",
+        "dimensions",
+        "dialogue",
+        "coolpoint",
+        "structure",
+        "anti_ai",
+        "reading_power",
+        "只输出一个 JSON",
+        "repair",
+        "target",
+        "sha256",
+        "source_refs",
+        "revision_id",
+        "revision_version",
+        "basis",
+        "expected_versions",
+        "input_fingerprint",
+        "truth_layers",
+        "POV_LEAK",
+        "code"
+      ],
+      "ordered": [
+        [
+          "## 6. 输出 JSON",
+          "## 7. 边界"
+        ]
+      ]
+    },
+    {
+      "id": "data-agent-truth-delta-schema",
+      "type": "text_contract",
+      "path": "agents/data-agent.md",
+      "required": [
+        "chapter_observations",
+        "proposed_updates",
+        "continuity_risks",
+        "auto_extraction",
+        "review_status",
+        "approved",
+        "no_changes",
+        "至少 3 条"
+      ]
+    }
+  ]
+}
