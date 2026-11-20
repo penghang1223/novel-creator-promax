@@ -15,9 +15,12 @@ claude plugin install novel-creator-pro@novel-creator-pro-market --scope user
 
 从远端 marketplace 安装：
 
-```text
-/plugin install novel-creator-pro --marketplace <owner>/<repo>
+```bash
+claude plugin marketplace add penghang1223/novel-creator-pro-plugin
+claude plugin install novel-creator-pro@novel-creator-pro-market --scope user
 ```
+
+> 仓库当前为 private；其他人需要先获得访问权限。改为 public 后可直接按上述命令安装。
 
 安装后可用：
 
@@ -102,6 +105,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/verify_project_integrity.py" \
 ```bash
 python3 -m unittest discover -s tests
 claude plugin validate ./
+bash tools/ci.sh          # 测试 + 技能健康检查 + 插件体检
 ```
 
 开发时建议用 `--plugin-dir` 原地加载，避免每次改动都重装：
