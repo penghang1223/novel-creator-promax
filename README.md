@@ -88,6 +88,19 @@ python3 -m unittest discover -s tests
 claude plugin validate ./
 ```
 
+开发时建议用 `--plugin-dir` 原地加载，避免每次改动都重装：
+
+```bash
+claude --plugin-dir .
+```
+
+已安装的插件会复制到 `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`。
+如果改完源码要验证安装版，执行：
+
+```bash
+claude plugin update novel-creator-pro@novel-creator-pro-market
+```
+
 源码结构：
 
 ```text
