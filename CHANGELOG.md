@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- 新增项目级工作流：research → idea → init → write → publish。
+- 新增 `tools/workflow.py` 阶段状态与门禁工具。
+- 新增 `novel-workflow` 技能与 `/workflow` 命令。
+- 新增 `docs/WORKFLOW.md`：阶段表、状态文件、门禁与跳过规则。
+- `MODE_REGISTRY` 增加模式 16（workflow）。
+- 调研/创意/立项/写章/发布命令接入阶段记录。
+
 ## 0.2.1
 
 - 统一创意评分规则：总分 ≥75 且无低于 8 的维度才直接推荐立项；有短板时提示先补强。

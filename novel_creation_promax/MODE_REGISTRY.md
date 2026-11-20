@@ -29,6 +29,7 @@
 | 13 | continuation | 续写他人作品 | 续写这篇、接着这个风格写 | `novel_creation_promax/scripts/style_dna_extractor.py` | 风格DNA、续写正文 | 风格校准 |
 | 14 | market-research | 平台热门方向调研 | 最近什么题材火、平台榜单、市场调研 | `skills/novel-market-research/SKILL.md` | 市场调研报告 | 来源与日期标注 |
 | 15 | idea-generation | 创意生成 | 给我几个选题、脑洞、创意方案 | `skills/novel-idea/SKILL.md` | 创意卡、五维评分 | 五维评分 + 差异化检查 |
+| 16 | workflow | 工作流阶段 | 工作流到哪了、下一步做什么、阶段门禁 | `skills/novel-workflow/SKILL.md` | workflow.json、阶段状态 | 阶段门禁 |
 
 ## 模式执行要点
 
@@ -78,3 +79,7 @@ python novel_creation_promax/scripts/write_pipeline.py post --novel-dir "{小说
 ### 15. 创意生成
 
 先读同平台调研报告和创意五维评分；没有调研报告时说明基于知识库基线生成。一次最多 10 个，默认 5 个，至少覆盖 3 种核心情绪/爽点。每个创意用 `tools/idea_score.py` 评分，低于 60 不得推荐立项；用户选定后交给立项流程。
+
+### 16. 工作流阶段
+
+`workflow.py` 只负责项目级外层导航：调研 → 创意 → 立项 → 写章 → 发布。阶段顺序默认不可跳；跳阶段必须 `--force --reason` 并写入 `overrides`。它不替代 `seal`、`writing_gate`、`post_write_audit` 或章节 commit。

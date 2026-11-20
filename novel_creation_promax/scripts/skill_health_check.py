@@ -192,10 +192,10 @@ def check_mode_registry(c: Check) -> None:
     if not registry.exists() or not skill.exists():
         return
     mode_ids = parse_mode_ids(registry)
-    expected = set(range(16))
+    expected = set(range(17))
     actual = set(mode_ids)
     if actual == expected:
-        c.ok("MODE_REGISTRY mode_id 连续 0-15")
+        c.ok("MODE_REGISTRY mode_id 连续 0-16")
     else:
         c.fail(f"MODE_REGISTRY mode_id 不连续: {sorted(actual)}")
 
@@ -273,6 +273,7 @@ def check_command_aliases(c: Check) -> None:
             "publish.md",
             "audit.md",
             "doctor.md",
+            "workflow.md",
         ]
     else:
         commands_dir = PROJECT_ROOT / ".claude" / "commands"

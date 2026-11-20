@@ -56,17 +56,22 @@ class ComponentTest(unittest.TestCase):
         for relative in (
             "skills/novel-market-research/SKILL.md",
             "skills/novel-idea/SKILL.md",
+            "skills/novel-workflow/SKILL.md",
             "commands/research.md",
             "commands/idea.md",
+            "commands/workflow.md",
             "novel_creation_promax/references/templates/market_research_report.md",
             "novel_creation_promax/references/templates/idea_card.md",
             "tools/idea_score.py",
+            "tools/workflow.py",
+            "docs/WORKFLOW.md",
         ):
             self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
 
         registry = (PROJECT_ROOT / "novel_creation_promax" / "MODE_REGISTRY.md").read_text(encoding="utf-8")
         self.assertIn("| 14 | market-research |", registry)
         self.assertIn("| 15 | idea-generation |", registry)
+        self.assertIn("| 16 | workflow |", registry)
 
         idea_skill = (PROJECT_ROOT / "skills" / "novel-idea" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("没有维度低于 8", idea_skill)

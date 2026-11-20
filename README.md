@@ -24,6 +24,7 @@ claude plugin install novel-creator-pro@novel-creator-pro-market --scope user
 ```text
 /novel-creator-pro:research  平台热门方向调研
 /novel-creator-pro:idea      创意生成 + 五维评分
+/novel-creator-pro:workflow  查看工作流阶段与下一步
 /novel-creator-pro:init      立项
 /novel-creator-pro:write     写章
 /novel-creator-pro:review    审稿
@@ -35,6 +36,8 @@ claude plugin install novel-creator-pro@novel-creator-pro-market --scope user
 ```text
 调研 → 创意 → 立项 seal → 大纲/细纲 → 写章 → 审稿 → 发布
 ```
+
+阶段状态与门禁见 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)。
 
 ## 环境要求
 
@@ -79,6 +82,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/verify_project_integrity.py" \
 | `novel-creator` | 总路由与全局契约 |
 | `novel-market-research` | 平台热门方向、榜单题材、可执行选题 |
 | `novel-idea` | 创意生成、创意卡、五维评分 |
+| `novel-workflow` | 项目级阶段与下一步门禁 |
 | `novel-project-planning` | 立项、设定、大纲、分卷、细纲 |
 | `novel-chapter-write` | 写章、续写、润色 |
 | `novel-memory` | 记忆初始化、唤醒、回填、体检 |

@@ -27,6 +27,8 @@ REQUIRED_PLUGIN_FILES = (
     "knowledge_base/_ROUTES.json",
     "knowledge_base/_ROUTING.md",
     "tools/verify_project_integrity.py",
+    "tools/workflow.py",
+    "docs/WORKFLOW.md",
 )
 
 OPTIONAL_DEPS = (

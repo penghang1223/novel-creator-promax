@@ -20,7 +20,7 @@ description: 创意生成、脑洞、选题和完整创意卡。用户说“给�
 
 ## 必读
 
-1. 最近一次同平台调研：`${CLAUDE_PROJECT_DIR}/素材/调研/*_{平台}_热门方向.md`（存在则读）
+1. 最近一次同平台调研：`${CLAUDE_PROJECT_DIR}/素材/调研/*{平台}*.md`（存在则读最近一份）
 2. `${CLAUDE_PLUGIN_ROOT}/knowledge_base/50_Quality/创意五维评分.md`
 3. `${CLAUDE_PLUGIN_ROOT}/knowledge_base/30_Plot/创意策划通用框架.md`
 4. `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/stages/01-idea/idea-interaction.md`
