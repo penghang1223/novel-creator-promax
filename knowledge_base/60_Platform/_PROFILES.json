@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "description": "项目级平台适配默认值；具体投稿规则仍以平台最新官方说明为准。",
+  "profiles": {
+    "番茄": {
+      "aliases": ["番茄小说"],
+      "word_count_range": [2800, 3200],
+      "recommended_range": [2800, 3200],
+      "content_mode": "long_serial"
+    },
+    "七猫": {
+      "aliases": [],
+      "word_count_range": [2800, 3200],
+      "recommended_range": [3000, 4000],
+      "content_mode": "long_serial"
+    },
+    "起点": {
+      "aliases": [],
+      "word_count_range": [2000, 4000],
+      "recommended_range": [2000, 3000],
+      "content_mode": "long_serial"
+    },
+    "知乎": {
+      "aliases": ["知乎盐选"],
+      "word_count_range": [3000, 5000],
+      "recommended_range": [3000, 5000],
+      "content_mode": "short_or_medium"
+    },
+    "短篇小说": {
+      "aliases": [],
+      "word_count_range": [2000, 5000],
+      "recommended_range": [2000, 5000],
+      "content_mode": "short_or_medium"
+    }
+  },
+  "default": {
+    "aliases": [],
+    "word_count_range": [2800, 3200],
+    "recommended_range": [2800, 3200],
+    "content_mode": "long_serial"
+  }
+}

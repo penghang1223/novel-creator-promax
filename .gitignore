@@ -1,0 +1,55 @@
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+config.toml
+!config.toml.example
+cc-connect-config.toml
+!cc-connect-config.toml.example
+
+# Claude Code machine-local settings (含 MCP 凭据，绝不入库)
+.claude/settings.local.json
+.mcp.json
+
+# Generated runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+novel_state.json.bak-*
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+build/
+
+# Browser and automation state
+.playwright-mcp/
+playwright-report/
+test-results/
+auto_publish/**/state.json
+
+# Raw ingested data / large archives (not source of truth)
+knowledge_base/flux/
+
+# Obsidian 插件二进制与缓存（18MB，不属于知识内容）
+knowledge_base/.obsidian/plugins/
+knowledge_base/.obsidian/cache/
+knowledge_base/.obsidian/workspace*
+knowledge_base/.obsidian/workspace.json
+
+# 注意：novel_output/ 曾被整体忽略，导致已跟踪的 565 个章节之外，
+# 新写的章节被静默排除出版本库。小说正文是本项目的核心资产，必须入库。
+# 图片走 Git LFS（见 .gitattributes），不要在这里再忽略 novel_output/。
+
+# Local editor noise
+.vscode/
+
+# 可重建的 SQLite 读模型（tools/sync_story_index.py 生成），不是真源
+novel_output/_workspace/index/*.sqlite3*

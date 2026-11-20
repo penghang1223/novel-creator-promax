@@ -1,0 +1,31 @@
+{
+  "description": "novel-creator-pro runtime guardrails: workspace status on session start and read-only protection for plugin assets and pipeline state.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard_runtime_write.py"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

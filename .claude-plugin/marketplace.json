@@ -1,0 +1,14 @@
+{
+  "name": "novel-creator-pro-market",
+  "description": "Local marketplace for novel-creator-pro",
+  "owner": {
+    "name": "penghang"
+  },
+  "plugins": [
+    {
+      "name": "novel-creator-pro",
+      "source": "./",
+      "description": "中文网文创作、审计、记忆与多平台发布"
+    }
+  ]
+}

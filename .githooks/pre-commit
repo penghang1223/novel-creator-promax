@@ -1,0 +1,7 @@
+#!/bin/sh
+# 章节写作门禁：新增/修改的正文文件必须已有审计报告。
+# 安装：bash tools/install_hooks.sh   （等价于 git config core.hooksPath .githooks）
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+exec python3 tools/chapter_guard.py --changed-only
