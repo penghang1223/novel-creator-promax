@@ -73,6 +73,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/write_pipeline.py" 
 4. 角色名禁止含「默」字。
 5. 任何章节、角色或伏笔推进，同步工作区记忆与 `knowledge_base/80_Projects/` 对应文件。
 6. 插件目录只读；正文、摘要、passport、commit 只写工作区。
+7. 新增具名角色或为角色新增化名、外号时，必须先执行 `${CLAUDE_PLUGIN_ROOT}/skills/name-generator/SKILL.md`，实际运行命名脚本并检查禁字、撞名及同音冲突；立项、短篇、续写和改稿均适用。未完成命名检查和用户选定前，不得将候选名写入正文或正式设定；已有姓名沿用、用户指定姓名的处理以命名技能为准。
 
 ## 常用入口
 

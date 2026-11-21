@@ -16,7 +16,7 @@ description: 新书立项、世界观与人物设定、长篇大纲、分卷和�
 
 ## 辅助技能
 
-- `name-generator`：角色命名、撞名与同音冲突检查。
+- `name-generator`：新增具名角色时必须调用，实际运行命名脚本并完成禁字、撞名与同音冲突检查；用户选定后才能纳入正式设定。具体契约见 `${CLAUDE_PLUGIN_ROOT}/skills/name-generator/SKILL.md`。
 - `title-blurb`：书名、简介、标签与书测素材。
 
 两者只产出各自领域的结果，立项与 seal 门禁仍以本技能为准。
