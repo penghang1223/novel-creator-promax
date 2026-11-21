@@ -240,6 +240,53 @@
         "接缝检查",
         "不伪造 seal"
       ]
+    },
+    {
+      "id": "chapter-spec-schema-contract",
+      "type": "text_contract",
+      "path": "novel_creation_promax/references/chapter-spec-schema.md",
+      "required": [
+        "before_state",
+        "after_state",
+        "tension_curve",
+        "result 不能等于 goal",
+        "to-scene-plan"
+      ]
+    },
+    {
+      "id": "prompt-library-contract",
+      "type": "text_contract",
+      "path": "novel_creation_promax/references/prompt-library.md",
+      "required": [
+        "24 组提示词",
+        "章节初稿",
+        "反派设计",
+        "16 维审核",
+        "五条禁忌"
+      ]
+    },
+    {
+      "id": "ai-reality-contract",
+      "type": "text_contract",
+      "path": "knowledge_base/60_Platform/AI变现与平台治理现实.md",
+      "required": [
+        "纯 AI",
+        "朱雀",
+        "人脑定框架",
+        "60 天"
+      ]
+    },
+    {
+      "id": "knowledge-governance-contract",
+      "type": "text_contract",
+      "path": "knowledge_base/KNOWLEDGE_GOVERNANCE.md",
+      "required": [
+        "一个主题只有一个主人",
+        "一个数只有一个出处",
+        "脚本只检查已写下的规则",
+        "60 天",
+        "改完必须验"
+      ]
     }
   ]
 }

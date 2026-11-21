@@ -257,6 +257,28 @@ python3 novel_creation_promax/scripts/write_pipeline.py pre \
 
 ---
 
+## 章节 spec / 备份 / 提示词
+
+```bash
+# 章节 spec：生成 → 校验 → 转场景计划
+python tools/chapter_spec.py scaffold --chapter 12 --title "第12章 对账" --output spec.json
+python tools/chapter_spec.py validate --file spec.json
+python tools/chapter_spec.py to-scene-plan --file spec.json --output scene_plan.json
+
+# 作战表骨架
+python tools/chapter_rhythm.py --gen 10 --out 作战表.md
+
+# 章节快照（正文/设定/摘要/记忆/状态/commit）
+python tools/backup.py snapshot --novel-dir "novel_output/番茄/书名" --chapter 12 --reason "定稿"
+python tools/backup.py list --novel-dir "novel_output/番茄/书名"
+```
+
+- `post --phase commit` 成功后默认生成快照；`--no-backup` 关闭。
+- 提示词库：`novel_creation_promax/references/prompt-library.md`（24 组）。
+- 章节 spec 字段：`novel_creation_promax/references/chapter-spec-schema.md`。
+
+---
+
 ## Writing pipeline
 
 一键串起写前检查 → 写作任务书 → Pass 1/2 → 结构化审稿 → 写后审计 → 记忆同步：
@@ -368,7 +390,9 @@ bash tools/install_hooks.sh         # 启用版本化 git hooks（core.hooksPath
 
 - `opening_score.py` — 开篇 100 分卡 + 12 类低留存。Usage: `python tools/opening_score.py 第1章.md --check`
 - `hit_rate.py` — 15 维爆款命中率与否定决/天花板封顶。Usage: `python tools/hit_rate.py --input 立项.json`
-- `chapter_rhythm.py` — 章节节奏 R1-R8。Usage: `python tools/chapter_rhythm.py --table 作战表.md --check`
+- `chapter_rhythm.py` — 章节节奏 R1-R8。Usage: `python tools/chapter_rhythm.py --table 作战表.md --check`；生成骨架：`python tools/chapter_rhythm.py --gen 10 --out 作战表.md`
+- `chapter_spec.py` — 章节/场景 spec：`scaffold` 生成模板、`validate` 校验、`to-scene-plan` 转场景计划。Usage: `python tools/chapter_spec.py validate --file spec.json`
+- `backup.py` — 章节快照备份（正文/设定/摘要/记忆/状态/commit）。Usage: `python tools/backup.py snapshot --novel-dir "novel_output/番茄/书名" --chapter 12`
 - `ai_flavor_score.py` — 启发式 AI 味评分。Usage: `python tools/ai_flavor_score.py 第1章.md --check`
 - `emotion_ledger.py` — 情绪账：温度档、憋屈累计、上次释放。Usage: `python tools/emotion_ledger.py sync --novel-dir "novel_output/番茄/书名"`
 - `idea_library.py` — 长期创意库：`init` / `archive-idea` / `archive-research` / `search` / `list` / `rebuild-index`。Usage: `python tools/idea_library.py --workspace "$PWD" search --query "番茄 女频" --json`

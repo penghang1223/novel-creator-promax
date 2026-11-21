@@ -28,6 +28,8 @@
 | 亲密场景/感情线 | `knowledge_base/40_Writing/04_场景与描写/亲密场景写作指南.md` |
 | 动漫分镜/视觉提示词 | `knowledge_base/动漫分镜生成.md` |
 | 短剧改编/分集大纲 | `knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md` + `短剧改编指南.md` |
+| 提示词/场景指令 | `novel_creation_promax/references/prompt-library.md` |
+| AI 变现/纯 AI 投稿/朱雀 | `knowledge_base/60_Platform/AI变现与平台治理现实.md` |
 | 对话场景/潜台词/张力 | `knowledge_base/40_Writing/04_场景与描写/潜台词与张力技法.md` |
 | 修仙/修炼体系 | `knowledge_base/10_WorldBuilding/题材知识库/修仙体系构建指南.md` |
 | 推理/探案流程 | `knowledge_base/10_WorldBuilding/题材知识库/推理破案流程指南.md` |

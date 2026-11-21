@@ -1252,6 +1252,20 @@ def post_commit_phase(args: argparse.Namespace) -> bool:
         generate_fix_plan(novel_dir, chapter, title)
     else:
         governance_check(novel_dir, chapter)
+        if not getattr(args, "no_backup", False):
+            try:
+                from novel_creation_promax.core.chapter_backup import snapshot_chapter
+
+                snapshot = snapshot_chapter(
+                    novel_dir,
+                    chapter,
+                    reason="post commit",
+                    keep=5,
+                    chapter_file=chapter_file,
+                )
+                print(f"[OK] 已备份第{chapter}章快照: {snapshot['path']}")
+            except (OSError, ValueError) as exc:
+                print(f"[WARN] 章节快照备份失败: {exc}", file=sys.stderr)
     return bool(commit_payload)
 
 
@@ -1745,6 +1759,11 @@ def main() -> int:
         "--override-reason",
         default="",
         help="跳过门禁的理由，会写入 novel_state.override_debt 留痕",
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="commit 成功后不生成章节快照（默认备份正文/设定/摘要/记忆/状态/commit）",
     )
     args = parser.parse_args()
 

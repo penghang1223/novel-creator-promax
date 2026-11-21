@@ -110,6 +110,18 @@
       ]
     },
     {
+      "key": "prompt_library",
+      "name": "提示词 / 场景指令",
+      "trigger": "提示词、prompt、章节初稿指令、续写指令",
+      "files": [
+        "novel_creation_promax/references/prompt-library.md"
+      ],
+      "title_keywords": [
+        "提示词",
+        "prompt"
+      ]
+    },
+    {
       "key": "engine_project",
       "name": "15维立项命中率",
       "trigger": "立项、评估题材能不能写、爆款命中率",
@@ -174,6 +186,19 @@
       "files": [
         "knowledge_base/60_Platform/数据诊断与救盘.md",
         "knowledge_base/60_Platform/平台机制与换挡.md"
+      ]
+    },
+    {
+      "key": "ai_reality",
+      "name": "AI 变现与平台治理现实",
+      "trigger": "AI 能不能赚钱、纯 AI 投稿、朱雀检测、平台治理",
+      "files": [
+        "knowledge_base/60_Platform/AI变现与平台治理现实.md"
+      ],
+      "title_keywords": [
+        "变现",
+        "AI投稿",
+        "朱雀"
       ]
     },
     {

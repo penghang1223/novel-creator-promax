@@ -1,6 +1,7 @@
 # 知识库内部索引
 
 > 本文件为 `knowledge_base/` 内部的快速参考。**全局行为规则见项目根目录 `CLAUDE.md`**。
+> 新增或修改知识前先读 [`KNOWLEDGE_GOVERNANCE.md`](KNOWLEDGE_GOVERNANCE.md)：一个主题一个主人、一个数一个出处、脚本只检查已写规则。
 
 ## PARA 编号体系
 

@@ -230,13 +230,69 @@ def render_text(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_table(n: int, *, platform: str = "") -> str:
+    """生成 N 章作战表骨架，供作者继续填写。"""
+    if n < 1:
+        raise ValueError("--gen 必须 >= 1")
+    word_min, word_max = T.platform_word_range(platform)
+    target = (word_min + word_max) // 2
+    lines = [
+        "| 章 | 核心事件 | 爽点类型 | 钩子强度 | 伏笔动作 | 字数目标 |",
+        "|---|---|---|---|---|---|",
+    ]
+    for index in range(1, n + 1):
+        pos = (index - 1) % 10
+        if index == 1:
+            event, spark, hook = "开篇异常：主角处境与代价同时出现", "信息差", "强"
+        elif index == 2:
+            event, spark, hook = "第一次压制：选择带来代价", "受辱/铺垫", "中"
+        elif index == 3:
+            event, spark, hook = "第一次能力兑现：当众验证核心能力", "能力兑现", "强"
+        elif pos == 3:
+            event, spark, hook = "冲突升级：主角做出关键选择", "能力兑现", "强"
+        elif pos == 6:
+            event, spark, hook = "阶段性反击：战果与代价同时到账", "打脸", "中"
+        elif pos == 9:
+            event, spark, hook = "十章大反转：格局级变化", "身份反转", "强"
+        else:
+            event, spark, hook = "推进主线，制造信息增量", "信息差", "中"
+        if pos == 3:
+            foreshadow = f"埋 F{index // 10 + 1}"
+        elif pos == 8 and index >= 8:
+            foreshadow = f"回收 F{index // 10}"
+        else:
+            foreshadow = "—"
+        lines.append(
+            f"| {index} | {event} | {spark} | {hook} | {foreshadow} | {target} |"
+        )
+    return "\n".join(lines)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="章节节奏 R1-R8 检查")
-    parser.add_argument("--table", required=True, help="章节作战表 Markdown")
+    parser = argparse.ArgumentParser(description="章节节奏 R1-R8 检查 / 作战表生成")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--table", help="章节作战表 Markdown")
+    group.add_argument("--gen", type=int, metavar="N", help="生成 N 章作战表骨架")
+    parser.add_argument("--out", default="", help="--gen 输出文件；省略时打印到 stdout")
     parser.add_argument("--platform", default="", help="番茄/起点/七猫/知乎，用于字数区间")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--check", action="store_true", help="存在严重问题时返回 1")
     args = parser.parse_args()
+
+    if args.gen is not None:
+        try:
+            text = generate_table(args.gen, platform=args.platform)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.out:
+            output = Path(args.out).expanduser()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text + "\n", encoding="utf-8")
+            print(f"[OK] 已生成 {args.gen} 章作战表: {output}")
+        else:
+            print(text)
+        return 0
 
     path = Path(args.table).expanduser()
     try:

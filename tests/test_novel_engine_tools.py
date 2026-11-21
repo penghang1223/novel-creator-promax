@@ -161,6 +161,15 @@ class ChapterRhythmTest(unittest.TestCase):
 
         self.assertEqual(result["issues"], [])
 
+    def test_generate_table_is_parseable(self):
+        table = chapter_rhythm.generate_table(5, platform="番茄")
+        rows = chapter_rhythm.parse_table(table)
+
+        self.assertEqual([row["chapter"] for row in rows], [1, 2, 3, 4, 5])
+        self.assertEqual(rows[0]["spark"], "信息差")
+        self.assertEqual(rows[2]["spark"], "能力兑现")
+        self.assertEqual(rows[0]["words"], 3000)
+
 
 class AiFlavorTest(unittest.TestCase):
     def test_ai_text_scores_higher_than_human_text(self):

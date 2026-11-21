@@ -55,6 +55,9 @@
 ### 亲密 / 感情线
 - `knowledge_base/40_Writing/04_场景与描写/亲密场景写作指南.md`（注意：`亲密场景写作.md` 已 deprecated）
 
+### 提示词 / 场景指令
+- `novel_creation_promax/references/prompt-library.md`（24 组创作/设计/包装/质检指令）
+
 ### 动漫分镜 / 视觉提示词
 - `knowledge_base/动漫分镜生成.md`
 - 输出写到工作区 `素材/分镜/{书名}/`；不改正文。
@@ -82,6 +85,7 @@
 | 长篇连载 / 每 5-10 章复盘 | `30_Plot/六台账与20条毒点.md` · `40_Writing/02_节奏与结构/跨章规范与七遍改稿.md` · `40_Writing/06_质量校验/章节节奏R1-R8.md` · `40_Writing/06_质量校验/长篇实战教训.md` |
 | AI 味重 / 过检测 | `40_Writing/05_降AI痕迹/朱雀祛AI味五维.md` · `40_Writing/05_降AI痕迹/AI禁用词与句式表.md` |
 | 上线后数据差 / 断流 / 切书 / 换平台 | `60_Platform/数据诊断与救盘.md` · `60_Platform/平台机制与换挡.md` |
+| AI 变现 / 纯 AI 投稿 / 朱雀环境 | `60_Platform/AI变现与平台治理现实.md` |
 | 人物声线 / 结构 / 句式 / 短剧 | `20_Characters/人物声线与弧线卡.md` · `30_Plot/叙事结构与场景节点.md` · `40_Writing/03_人物与对话/句式骨架与提示词库.md` · `40_Writing/07_短篇与模板/短剧改编10维.md` |
 | 插章 / 重编号 | `40_Writing/06_质量校验/插章与重编号.md` |
 

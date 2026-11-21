@@ -61,6 +61,8 @@ python novel_creation_promax/scripts/project_bootstrap_pipeline.py \
 
 ## 每章强制流程
 
+写前可选：用 `tools/chapter_spec.py validate` 校验章节 spec（`before_state` / `after_state` / `scenes` / `tension_curve` / `change`），再用 `to-scene-plan` 和 `tools/scene_passport.py init` 初始化场景计划。spec 是写前输入，不替代 9 问、知识包和 rule_stack。
+
 1. 校验真相文件，并生成章节记忆包。
 2. 按 `knowledge_base/_ROUTES.json` 生成 `摘要/chapter_NNN_knowledge_pack.json`：`required` 五项 + 按章节号、标题和**细纲场景标签**选中的路由；`retrieval` 只检索 `20_Characters` / `30_Plot` / `40_Writing`，避免项目元数据污染。
    `required` 或 `selected_routes` 存在缺失文件时，默认记为 `knowledge_pack=warning` 并逐项打印；设置 `novel_state.json` 的 `knowledge_gate="strict"` 或运行 `pre --strict-knowledge` 时改为阻断。
@@ -76,7 +78,7 @@ python novel_creation_promax/scripts/project_bootstrap_pipeline.py \
 12. 运行 `novel_creation_promax/scripts/post_write_audit.py`；第 1-3 章同时运行 `tools/opening_score.py`。
 13. 运行字数归一化、truth delta、风格校准和人物一致性检查。
 14. 生成章节摘要和 chapter passport，回填 `novel-memory`、真相文件和 `novel_state.json`；同时重建 `追踪/情绪账.md`。
-15. 所有必需检查通过后生成 `素材/commits/chapter_NNN.commit.json`，用 SHA-256 绑定正文、passport、audit、truth delta、review 和检查报告；后续章节门禁会校验这条提交记录。
+15. 所有必需检查通过后生成 `素材/commits/chapter_NNN.commit.json`，用 SHA-256 绑定正文、passport、audit、truth delta、review 和检查报告；后续章节门禁会校验这条提交记录。commit 成功后默认生成 `素材/备份/chapter_NNN_*/` 快照（正文/设定/摘要/记忆/状态/commit），`--no-backup` 可关闭。
 
 推荐命令：
 
