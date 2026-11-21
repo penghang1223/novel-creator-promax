@@ -50,9 +50,20 @@
 
 ### 短篇模式
 - `knowledge_base/40_Writing/07_短篇与模板/短篇创作模板.md`
+- `novel_creation_promax/references/short-story-workflow.md`（任务边界、写前检查、整篇验收）
 
 ### 亲密 / 感情线
 - `knowledge_base/40_Writing/04_场景与描写/亲密场景写作指南.md`（注意：`亲密场景写作.md` 已 deprecated）
+
+### 动漫分镜 / 视觉提示词
+- `knowledge_base/动漫分镜生成.md`
+- 输出写到工作区 `素材/分镜/{书名}/`；不改正文。
+
+### 短剧改编 / 分集设计
+- `knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md`
+- `knowledge_base/40_Writing/07_短篇与模板/短剧改编指南.md`
+- `novel_creation_promax/references/docs/short-drama-adaptation.md`
+- 输出写到工作区 `素材/短剧/{书名}/`；不改正文。
 
 ### 作家风格借鉴（用户明确要求时）
 - `knowledge_base/40_Writing/风格指南/写作风格技能合集/{作家}-writing-style/SKILL.md`

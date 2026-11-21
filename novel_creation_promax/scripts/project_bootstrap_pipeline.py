@@ -33,6 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 from novel_creation_promax.core.dashboard import write_dashboards  # noqa: E402
 from novel_creation_promax.core.roots import resolve_route_path, workspace_root  # noqa: E402
+from novel_creation_promax.core import workspace_confirmation as wc  # noqa: E402
 
 MEMORY_SCRIPT = PROJECT_ROOT / "skills" / "novel-memory" / "scripts" / "memory_manager.py"
 TRUTH_SCRIPT = PROJECT_ROOT / "novel_creation_promax" / "scripts" / "story_truth_manager.py"
@@ -1453,8 +1454,10 @@ def run_check(args: argparse.Namespace, *, seal: bool = False) -> tuple[bool, di
 
 
 def print_report(report: dict[str, Any]) -> None:
+    mode = str(report.get("mode") or "")
+    header = "续写导入门禁" if mode == "continuation_import" else "新书立项门禁"
     print("=" * 64)
-    print(f"新书立项门禁: {report['status'].upper()} ({report['passed']} pass / {report['failed']} fail)")
+    print(f"{header}: {report['status'].upper()} ({report['passed']} pass / {report['failed']} fail)")
     print(f"项目: {report['project']['platform']} / {report['project']['title']}")
     print("=" * 64)
     for item in report["results"]:
@@ -1462,12 +1465,173 @@ def print_report(report: dict[str, Any]) -> None:
         print(f"{status} Step {item['step']:02d} {item['name']} - {item['detail']}")
     print("=" * 64)
     if report["can_write_chapter"]:
-        if report.get("mode") == "seal":
+        if mode == "seal":
             print("[OK] 立项门禁已封存，可以进入章节写作流水线。")
+        elif mode == "continuation_import":
+            print("[OK] 续写导入检查通过。")
         else:
             print("[INFO] 检查全部通过，但 check 不解锁写作。请运行 seal 正式封存。")
     else:
-        print("[BLOCKED] 立项门禁未通过，禁止开始正文。先补齐 FAIL 项后重跑 seal。")
+        print("[BLOCKED] 门禁未通过，禁止开始正文。先补齐 FAIL 项。")
+
+
+def _ensure_workspace(*, confirm: bool = False) -> bool:
+    """Refuse to scaffold until the output location is confirmed."""
+    try:
+        payload = wc.confirm(workspace_root(), by="cli") if confirm else wc.require_confirmed(workspace_root())
+    except wc.WorkspaceConfirmationError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return False
+    if payload.get("auto_confirmed"):
+        print("[OK] 已为存量工作区补写确认标记")
+    return True
+
+
+def continuation_gate(
+    novel_dir: Path,
+    report_path: Path,
+    *,
+    approve: bool,
+) -> tuple[bool, dict[str, Any]]:
+    """Validate a deconstruction import and, after review, unlock writing.
+
+    This is a separate gate from ``seal``: it records
+    ``bootstrap_status=continuation_import`` and never claims the long-form
+    planning checklist passed.
+    """
+    report = load_json(report_path, {})
+    if not isinstance(report, dict) or report.get("mode") != "continuation_import":
+        print(f"[ERROR] 不是续写导入报告: {report_path}", file=sys.stderr)
+        return False, {}
+
+    results: list[dict[str, Any]] = []
+
+    def add(step: int, name: str, ok: bool, detail: str) -> None:
+        results.append(
+            {"step": step, "name": name, "status": "pass" if ok else "fail", "detail": detail}
+        )
+
+    source = report.get("source") if isinstance(report.get("source"), dict) else {}
+    add(1, "拆文章节", int(source.get("chapters", 0) or 0) >= 1, f"chapters={source.get('chapters', 0)}")
+    add(2, "拆文角色", int(source.get("characters", 0) or 0) >= 1, f"characters={source.get('characters', 0)}")
+
+    required = [
+        "novel_state.json",
+        "设定/人物档案.md",
+        "设定/地点档案.md",
+        "设定/势力档案.md",
+        "设定/事件档案.md",
+        "设定/关系网络.md",
+        "设定/常识约束.md",
+        "细纲/续写细纲.md",
+        "记忆/style_dna_baseline.json",
+    ]
+    for index, relative in enumerate(required, 3):
+        path = novel_dir / relative
+        add(index, relative, path.is_file(), "存在" if path.is_file() else "缺失")
+
+    truth_report = novel_dir / "素材" / "truth_files_gate.json"
+    truth_result = subprocess.run(
+        [
+            sys.executable,
+            str(TRUTH_SCRIPT),
+            "validate",
+            "--novel-dir",
+            str(novel_dir),
+            "--continuation",
+            "--output",
+            str(truth_report),
+        ],
+        cwd=workspace_root(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    add(20, "真相文件（续写模式）", truth_result.returncode == 0, "pass" if truth_result.returncode == 0 else "fail")
+
+    failed = [item for item in results if item["status"] != "pass"]
+    can_write = not failed
+    payload = {
+        "generated_at": now_iso(),
+        "mode": "continuation_import",
+        "project": report.get("project", {}),
+        "status": "pass" if can_write else "fail",
+        "can_write_chapter": can_write,
+        "passed": len(results) - len(failed),
+        "failed": len(failed),
+        "results": results,
+        "source_report": report_path.relative_to(novel_dir).as_posix(),
+        "review_status": "reviewed" if approve else "pending",
+    }
+
+    if not approve:
+        print_report(payload)
+        print("[NEXT] 审查无误后加 --approve 写入 gate 并解锁正文。")
+        return can_write, payload
+
+    if not can_write:
+        print_report(payload)
+        print("[BLOCKED] 检查未通过，不能解锁正文。", file=sys.stderr)
+        return False, payload
+
+    gate_path = novel_dir / "素材" / "continuation_import_gate.json"
+    save_json(gate_path, payload)
+
+    state_path = novel_dir / "novel_state.json"
+    state = load_json(state_path, {})
+    if not isinstance(state, dict):
+        state = {}
+    state["import_mode"] = "continuation"
+    state["workflow_gate"] = {
+        "bootstrap_status": "continuation_import",
+        "bootstrap_report": gate_path.relative_to(novel_dir).as_posix(),
+        "bootstrap_report_sha256": sha256_file(gate_path),
+        "can_write_chapter": True,
+        "last_checklist_step": 20,
+        "last_check_status": "pass",
+        "last_check_report": gate_path.relative_to(novel_dir).as_posix(),
+        "last_check_at": now_iso(),
+        "sealed_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    save_json(state_path, state)
+
+    from novel_creation_promax.core.workflow_state import save_workflow
+
+    workflow_state = {
+        "book": novel_dir.name,
+        "platform": str(state.get("platform") or novel_dir.parent.name),
+        "genre": str(state.get("genre") or ""),
+        "stage": "write",
+        "status": "done",
+        "research_report": "",
+        "idea_card": "",
+        "novel_dir": rel(novel_dir),
+        "history": [
+            {
+                "stage": "write",
+                "status": "done",
+                "at": now_iso(),
+                "note": "续写导入：外部文本拆文后直接进入写作",
+            }
+        ],
+        "overrides": [
+            {
+                "target": "write",
+                "reason": "续写他人作品，无调研/创意阶段",
+                "at": now_iso(),
+            }
+        ],
+        "created_at": now_iso(),
+    }
+    save_workflow(novel_dir, workflow_state, workspace=workspace_root())
+    write_dashboards(workspace_root(), novel_dir)
+
+    print_report(payload)
+    print(f"[OK] 续写门禁已写入: {gate_path.relative_to(novel_dir).as_posix()}")
+    print("[NEXT] 可以进入第 1 章：python novel_creation_promax/scripts/write_pipeline.py pre ...")
+    return True, payload
 
 
 def main() -> int:
@@ -1481,6 +1645,11 @@ def main() -> int:
     init_parser.add_argument("--premise", default="", help="核心设定/一句话故事")
     init_parser.add_argument("--novel-dir", default="", help="自定义小说目录")
     init_parser.add_argument("--force", action="store_true", help="覆盖已有占位文件")
+    init_parser.add_argument(
+        "--confirm-workspace",
+        action="store_true",
+        help="调用方已获得用户确认，允许在当前工作区写入并记录标记",
+    )
 
     for name in ("check", "seal"):
         sub = subparsers.add_parser(name, help="检查/最终封存立项门禁")
@@ -1488,7 +1657,24 @@ def main() -> int:
         sub.add_argument("--title", default="", help="书名，默认从 novel_state 或目录推断")
         sub.add_argument("--platform", default="", help="平台，默认从 novel_state 或父目录推断")
 
+    continuation = subparsers.add_parser("continuation-gate", help="审核拆文续写导入并解锁正文")
+    continuation.add_argument("--novel-dir", required=True)
+    continuation.add_argument("--report", default="素材/continuation_import_report.json")
+    continuation.add_argument("--approve", action="store_true", help="用户已审查报告，写入 gate")
+
     args = parser.parse_args()
+    if args.command in {"init", "check", "seal", "continuation-gate"}:
+        if not _ensure_workspace(confirm=getattr(args, "confirm_workspace", False)):
+            return 2
+
+    if args.command == "continuation-gate":
+        novel_dir = resolve_path(args.novel_dir)
+        report_path = Path(args.report)
+        if not report_path.is_absolute():
+            report_path = novel_dir / report_path
+        ok, _payload = continuation_gate(novel_dir, report_path, approve=args.approve)
+        return 0 if ok else 1
+
     if args.command == "init":
         scaffold_project(args)
         return 0

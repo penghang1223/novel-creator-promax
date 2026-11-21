@@ -23,6 +23,11 @@ SKILL_NAMES = (
     "novel-review",
     "novel-publish",
     "novel-knowledge-ingestion",
+    "anime-storyboard",
+    "short-drama-adaptation",
+    "novel-continuation",
+    "novel-short-story",
+    "novel-revision",
 )
 
 ALLOWED_ENTRY_TYPES = {"skill", "doc", "kb", "script"}
@@ -230,10 +235,10 @@ def check_mode_registry(c: Check) -> None:
     if not registry.exists() or not skill.exists():
         return
     mode_ids = parse_mode_ids(registry)
-    expected = set(range(18))
+    expected = set(range(20))
     actual = set(mode_ids)
     if actual == expected:
-        c.ok("MODE_REGISTRY mode_id 连续 0-17")
+        c.ok("MODE_REGISTRY mode_id 连续 0-19")
     else:
         c.fail(f"MODE_REGISTRY mode_id 不连续: {sorted(actual)}")
 

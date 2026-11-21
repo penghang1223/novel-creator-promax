@@ -21,16 +21,18 @@
 | 5 | chapter-write | 正文写作 | 写第N章、续写、下一章 | doc | `references/orchestrator.md` Stage 5 + `skills/novel-chapter-write/SKILL.md` | 正文、摘要、passport、taskbook、review JSON | pre-check、未知事实、gate、结构化审稿、audit |
 | 6 | style | 风格定制 | 模仿风格、调语气、毒舌风 | kb | `knowledge_base/40_Writing/风格指南/风格索引.md` | style_dna 或风格约束 | 风格校准 |
 | 7 | memory | 记忆管理 | 查看记忆、同步记忆、别吃设定 | skill | `skills/novel-memory/SKILL.md` | memory JSON、review pack | schema 校验 |
-| 8 | polish | 正文润色 | 润色、降AI、改对话、调节奏 | kb | `knowledge_base/40_Writing/05_降AI痕迹/降低AI痕迹.md` | 修订稿、revision_history | 审计复跑 |
+| 8 | polish | 正文润色 | 润色、降AI、改对话、调节奏 | skill | `skills/novel-revision/SKILL.md` | 修订稿、revision_history | 快照 + 审计复跑 |
 | 9 | review | 审稿评估 | 审一下、质量怎么样、帮我看看 | skill | `skills/novel-review/SKILL.md` + `references/review-result-schema.md` | 审稿 JSON、人读报告 | 自动审计先跑、reviewer 契约 |
-| 10 | short-story | 短篇创作 | 短篇、知乎盐选、短故事 | doc | `references/trigger-rules.md` | 短篇正文、摘要 | 字数/结构审计 |
+| 10 | short-story | 短篇创作 | 短篇、知乎盐选、短故事 | skill | `skills/novel-short-story/SKILL.md` | 短篇正文、outline、写前检查、审稿 | 调研/写前检查/整篇审稿 |
 | 11 | platform-output | 多平台输出 | 番茄格式、起点格式、发布同步 | skill | `skills/novel-publish/SKILL.md` | 平台稿、同步结果 | 平台规则检查 |
 | 12 | retrospective | 完结复盘 | 完结复盘、总结教训、升级规则 | script | `novel_creation_promax/scripts/novel_review_and_upgrade.py` | 复盘报告、规则建议 | 用户确认后入库 |
-| 13 | continuation | 续写他人作品 | 续写这篇、接着这个风格写 | script | `skills/novel-memory/scripts/style_dna_extractor.py` | 风格DNA、续写正文 | 风格校准 |
+| 13 | continuation | 续写他人作品 | 续写这篇、接着这个风格写、拆文后续写 | skill | `skills/novel-continuation/SKILL.md` | 拆文结果、续写项目、导入报告 | 拆文导入 + continuation-gate |
 | 14 | market-research | 平台热门方向调研 | 最近什么题材火、平台榜单、市场调研 | skill | `skills/novel-market-research/SKILL.md` | 市场调研报告 | 来源与日期标注 |
 | 15 | idea-generation | 创意生成 | 给我几个选题、脑洞、创意方案 | skill | `skills/novel-idea/SKILL.md` | 创意卡、五维评分 | 五维评分 + 差异化检查 |
 | 16 | workflow | 工作流阶段 | 工作流到哪了、下一步做什么、阶段门禁 | skill | `skills/novel-workflow/SKILL.md` | workflow.json、阶段状态 | 阶段门禁 |
 | 17 | data-diagnosis | 数据诊断 | 我扑了、数据掉了、断流、要不要切书、书测 | skill | `skills/novel-diagnose/SKILL.md` + `tools/data_diagnosis.py` | 诊断报告、七天动作 | 11 项数据完整 |
+| 18 | anime-storyboard | 动漫分镜 | 分镜、画面脚本、Sora 提示词、即梦分镜 | skill | `skills/anime-storyboard/SKILL.md` + `knowledge_base/动漫分镜生成.md` | 角色/场景提示词、Sora JSON、分镜表 | 视觉一致性检查 |
+| 19 | short-drama-adaptation | 短剧改编 | 短剧改编、能不能改编、分集大纲、漫剧改编 | skill | `skills/short-drama-adaptation/SKILL.md` + `knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md` | 10维评估、分集大纲、钩子表 | 10维评分 + 用户确认 |
 
 ## 模式执行要点
 

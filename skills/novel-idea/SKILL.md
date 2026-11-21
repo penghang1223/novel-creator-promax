@@ -7,6 +7,19 @@ description: 创意生成、脑洞、选题和完整创意卡。用户说“给�
 
 目标不是列点子的标题，而是产出**能立项的创意卡**：一句话讲得清、冲突立得住、爽点撑得久、风险说得明。
 
+## 工作区确认（写入前）
+
+本技能会写 `创意/` 和 `创意库/`。写入前运行：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+```
+
+- `dangerous=plugin_root|root`：停止，不得写入。
+- `confirmed=false` 且 `legacy_books=0`：展示 `workspace` 绝对路径与 `write_paths`，等用户确认后运行 `workspace.py confirm`。
+- `confirmed=false` 且 `legacy_books>0`：运行 `workspace.py confirm --legacy` 后继续。
+- `confirmed=true`：继续。
+
 ## 输入
 
 先确认，缺省时给推荐值：

@@ -17,6 +17,12 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from novel_creation_promax.core import workspace_confirmation as wc  # noqa: E402
+
 
 def _read_json(path: Path) -> dict:
     try:
@@ -81,6 +87,10 @@ def main() -> int:
     plugin, workspace = _roots()
     books = _books(workspace)
     lines = [f"[novel-creator-pro] workspace={workspace}"]
+    try:
+        lines.append(wc.format_status(wc.status(workspace)))
+    except (OSError, ValueError):
+        pass
 
     if books:
         preview = ", ".join(

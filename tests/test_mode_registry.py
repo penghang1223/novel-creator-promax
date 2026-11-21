@@ -32,7 +32,7 @@ def mode_rows() -> list[list[str]]:
 class ModeRegistryTest(unittest.TestCase):
     def test_every_mode_has_entry_type_and_existing_entry(self):
         rows = mode_rows()
-        self.assertEqual(len(rows), 18)
+        self.assertEqual(len(rows), 20)
 
         for cells in rows:
             mode_id, mode_key, entry_type, entry = cells[0], cells[1], cells[4], cells[5]

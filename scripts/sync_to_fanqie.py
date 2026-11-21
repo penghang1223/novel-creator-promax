@@ -3,8 +3,8 @@
 小说/短故事输出 → 番茄发布目录同步脚本
 
 支持两种模式：
-  - 小说连载：novel_output/番茄/书名/正文/*.md → auto_publish/fanqie_auto_publish/chapters/书名/*.txt
-  - 短故事：  novel_output/短篇小说/NN_书名/正文/*.md → auto_publish/fanqie_auto_publish/short_chapters/书名/*.txt
+  - 小说连载：novel_output/番茄/书名/正文/*.md → .novel_publish/fanqie/chapters/书名/*.txt
+  - 短故事：  novel_output/短篇小说/NN_书名/正文/*.md → .novel_publish/fanqie/short_chapters/书名/*.txt
 
 用法:
     python sync_to_fanqie.py                          # 同步所有小说
@@ -14,6 +14,8 @@
     python sync_to_fanqie.py --list                   # 列出所有可同步的小说
     python sync_to_fanqie.py --short --list           # 列出所有可同步的短故事
 """
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -27,12 +29,14 @@ from pipeline_utils import (  # noqa: E402
     save_passport,
     update_novel_state,
 )
+from novel_creation_promax.core.roots import workspace_root  # noqa: E402
 
-PROJECT_ROOT = Path(__file__).parent.parent
-NOVEL_OUTPUT = PROJECT_ROOT / "novel_output"
+WORKSPACE = workspace_root()
+NOVEL_OUTPUT = WORKSPACE / "novel_output"
 FANQIE_NOVEL_ROOT = NOVEL_OUTPUT / "番茄"
-FANQIE_CHAPTERS = PROJECT_ROOT / "auto_publish/fanqie_auto_publish" / "chapters"
-FANQIE_SHORT_CHAPTERS = PROJECT_ROOT / "auto_publish/fanqie_auto_publish" / "short_chapters"
+FANQIE_PROJECT = WORKSPACE / ".novel_publish" / "fanqie"
+FANQIE_CHAPTERS = FANQIE_PROJECT / "chapters"
+FANQIE_SHORT_CHAPTERS = FANQIE_PROJECT / "short_chapters"
 SHORT_STORY_DIRS = [
     NOVEL_OUTPUT / "006_短篇小说",
     NOVEL_OUTPUT / "短篇小说",
@@ -189,7 +193,7 @@ def sync_novel(novel_name: str, novel_dir: Path | None = None) -> int:
 
         # 跳过已存在（已同步过）
         if txt_path.exists():
-            uploaded_path = PROJECT_ROOT / "auto_publish/fanqie_auto_publish" / "uploaded" / novel_name / txt_name
+            uploaded_path = FANQIE_PROJECT / "uploaded" / novel_name / txt_name
             if uploaded_path.exists():
                 continue
 
@@ -236,7 +240,7 @@ def sync_short_story(real_name: str, folder_name: str, story_dir: Path | None = 
         txt_path = target_dir / txt_name
 
         if txt_path.exists():
-            uploaded_path = FANQIE_SHORT_CHAPTERS / "uploaded" / real_name / txt_name
+            uploaded_path = FANQIE_PROJECT / "short_uploaded" / real_name / txt_name
             if uploaded_path.exists():
                 continue
 

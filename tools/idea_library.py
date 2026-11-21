@@ -43,8 +43,8 @@ def library_dir(workspace: Path, override: str = "") -> Path:
 
 def init_library(library: Path) -> dict[str, Any]:
     library.mkdir(parents=True, exist_ok=True)
-    (library / IDEA_DIR).mkdir(exist_ok=True)
-    (library / RESEARCH_DIR).mkdir(exist_ok=True)
+    (library / IDEA_DIR).mkdir(parents=True, exist_ok=True)
+    (library / RESEARCH_DIR).mkdir(parents=True, exist_ok=True)
     schema_path = library / SCHEMA_FILE
     if not schema_path.exists():
         save_json(

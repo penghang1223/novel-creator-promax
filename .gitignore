@@ -52,6 +52,7 @@ novel_output/
 素材/
 MEMORY.md
 .claude/memory/
+.novel-workspace.json
 索引对齐备份_*/
 *备份_2026*/
 .workbuddy/

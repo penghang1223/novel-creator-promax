@@ -65,6 +65,7 @@ from novel_creation_promax.core.review_result import review_gate, review_path as
 from novel_creation_promax.core.revision_control import ensure_current_revision
 from novel_creation_promax.core.roots import workspace_root
 from novel_creation_promax.core.tension_curve import load_tension_contract, validate_chapter_tension
+from novel_creation_promax.core import workspace_confirmation as wc
 
 SCRIPTS_DIR = PROJECT_ROOT / "novel_creation_promax" / "scripts"
 MEMORY_SCRIPTS_DIR = PROJECT_ROOT / "skills" / "novel-memory" / "scripts"
@@ -135,6 +136,17 @@ def ensure_prev_chapter_audited(
     """
     if chapter <= 1:
         return True
+
+    state_path = novel_dir / "novel_state.json"
+    state = load_json(state_path, {})
+    if isinstance(state, dict) and state.get("import_mode") == "continuation":
+        imported_last = int(state.get("import_last_chapter", 0) or 0)
+        if imported_last and chapter == imported_last + 1:
+            print(
+                f"[OK] 续写导入：第{imported_last}章为外部原文，"
+                "无本项目审计记录，跳过前置审计门禁"
+            )
+            return True
 
     # 先按正常规则判定；只有确实不通过时才走 override 分支
     ok, detail = previous_chapter_audited(novel_dir, chapter)
@@ -1735,6 +1747,14 @@ def main() -> int:
         help="跳过门禁的理由，会写入 novel_state.override_debt 留痕",
     )
     args = parser.parse_args()
+
+    try:
+        workspace_state = wc.require_confirmed(workspace_root())
+    except wc.WorkspaceConfirmationError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 2
+    if workspace_state.get("auto_confirmed"):
+        print("[OK] 已为存量工作区补写确认标记")
 
     if args.stage == "act-summary":
         if not args.volume:

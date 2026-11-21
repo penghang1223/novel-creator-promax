@@ -57,6 +57,7 @@ def run_init(workspace: Path) -> subprocess.CompletedProcess:
             "都市",
             "--premise",
             "主角被裁员后觉醒能力，向前公司复仇。",
+            "--confirm-workspace",
         ],
         text=True,
         capture_output=True,

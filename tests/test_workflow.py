@@ -32,6 +32,16 @@ def make_workspace(tmp: str) -> Path:
     (workspace / "素材" / "调研").mkdir(parents=True)
     (workspace / "创意").mkdir(parents=True)
     (workspace / "novel_output" / "番茄" / "书").mkdir(parents=True)
+    write_json(
+        workspace / ".novel-workspace.json",
+        {
+            "schema_version": "1.0",
+            "confirmed": True,
+            "workspace": str(workspace.resolve()),
+            "confirmed_at": "2026-11-21T00:00:00",
+            "confirmed_by": "test",
+        },
+    )
     return workspace
 
 

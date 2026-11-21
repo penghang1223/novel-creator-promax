@@ -1,6 +1,9 @@
 state.json
+chapters/
+short_chapters/
 uploaded/
 short_uploaded/
+engine/
 *.png
 __pycache__/
 .venv/

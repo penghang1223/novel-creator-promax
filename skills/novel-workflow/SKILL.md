@@ -20,6 +20,19 @@ python3 "${CLAUDE_PLUGIN_ROOT}/tools/workflow.py" --workspace "${CLAUDE_PROJECT_
 - 未开始：先确认平台/题材，再 `start`。
 - 有状态：报告**最后完成的阶段**、下一步和 `missing` 门禁项。
 
+## 启动前确认工作区
+
+`start` 会写工作区的 workflow 状态文件。先运行：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+```
+
+- `dangerous` 为 `plugin_root` 或 `root`：停止。
+- `confirmed=false` 且 `legacy_books=0`：向用户展示绝对路径，等用户确认后再 `workspace.py confirm`；不要把 `--confirm-workspace` 当作默认参数。
+- `confirmed=false` 且 `legacy_books>0`：可用 `workspace.py confirm --legacy`，或直接 `start --confirm-workspace`。
+- `status` / `gate` 只读，不需要确认。
+
 ## 推进规则
 
 ```bash

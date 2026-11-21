@@ -7,6 +7,7 @@ argument-hint: "[书名] 第N章 [标题]"
 
 执行顺序：
 
+0. `workspace.py status --json`：`dangerous=plugin_root|root` 时停止；`confirmed=false` 且 `legacy_books=0` 时先让用户确认产物目录。
 1. `write_pipeline.py pre`
 2. `context-agent` 生成五段写作任务书
 3. Pass 1 剧情稿

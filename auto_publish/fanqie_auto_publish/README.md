@@ -1,70 +1,66 @@
-# 番茄小说自动发布工具
+# 番茄小说自动发布（桥接层）
 
-基于 Playwright 的番茄作家助手自动发布脚本。
+本目录不内置第三方 Playwright 发布引擎，`publish.py` / `login.py` 是**桥接入口**：
+它们解析一个外部 `fanqie_auto_publish` 引擎，并以工作区为运行目录执行。
 
-## 目录结构
+这样做的原因：
 
-```
-fanqie_auto_publish/
-├── login.py              # 登录脚本（保存 Cookie）
-├── publish.py            # 自动发布脚本
-├── state.json            # 登录状态（自动生成，已忽略）
-├── chapters/             # 待发布小说章节
-│   └── 书名/
-│       ├── 第001章.txt
-│       └── 第002章.txt
-├── short_chapters/       # 待发布短故事
-│   └── 短故事名/
-│       └── 短故事.txt
-├── uploaded/             # 已发布章节归档
-└── short_uploaded/       # 已发布短故事归档
-```
+- Playwright 发布引擎体积大、更新频繁，不适合随插件一起分发；
+- 登录态、章节草稿和已发布归档必须留在用户工作区，不能写进只读插件目录。
 
-## 使用方法
+## 引擎解析顺序
 
-### 1. 首次登录
+1. `NOVEL_FANQIE_PUBLISHER`：指向引擎的 `publish.py` 或其所在目录
+2. `~/fanqie_auto_publish/`
+3. `{workspace}/.novel_publish/fanqie/engine/`
+4. `auto_publish/fanqie_auto_publish/engine/`
 
 ```bash
-cd auto_publish/fanqie_auto_publish
-python3 login.py
+export NOVEL_FANQIE_PUBLISHER="$HOME/fanqie_auto_publish"
 ```
 
-浏览器会打开番茄作家助手登录页面，扫码或手机验证码登录。
+## 工作区目录
 
-登录成功后在终端按回车，自动保存 Cookie 到 `state.json`。
+所有运行产物都在工作区，不在插件目录：
 
-### 2. 同步章节
+```text
+{workspace}/.novel_publish/fanqie/
+├── state.json          # 登录态（首次运行会从引擎目录复用）
+├── chapters/           # 长篇小说章节（sync_to_fanqie.py 生成）
+├── short_chapters/     # 短故事章节
+├── uploaded/           # 已发布长篇章归档
+└── short_uploaded/     # 已发布短故事归档
+```
 
-从 `novel_output/` 同步到发布目录：
+## 安装
 
 ```bash
-python scripts/sync_to_fanqie.py              # 同步所有小说
-python scripts/sync_to_fanqie.py --short      # 同步所有短故事
-python scripts/sync_to_fanqie.py "书名"        # 同步指定小说
+python3 -m pip install -r requirements.txt
+python3 -m playwright install chromium
 ```
 
-### 3. 发布章节
+## 使用
 
 ```bash
-# 发布所有章节
-python3 publish.py --book "书名"
+# 1. 首次登录（扫码后回车保存登录态）
+python3 auto_publish/fanqie_auto_publish/login.py
 
-# 发布前3章
-python3 publish.py --book "书名" --count 3
+# 2. 从 novel_output 同步待发章节到工作区发布目录
+python3 scripts/sync_to_fanqie.py "书名"
+python3 scripts/sync_to_fanqie.py --short "短故事名"
 
-# 存草稿模式（不直接发布）
-python3 publish.py --book "书名" --draft
+# 3. 存草稿（推荐先草稿）
+python3 auto_publish/fanqie_auto_publish/publish.py --book "书名" --count 3 --draft
 
-# 发布短故事
-python3 publish.py --short --book "短故事名"
+# 4. 明确授权后直接发布
+python3 auto_publish/fanqie_auto_publish/publish.py --book "书名" --count 3
+
+# 5. 只检查引擎与依赖
+python3 auto_publish/fanqie_auto_publish/publish.py --check
 ```
 
-### 参数说明
+## 安全边界
 
-| 参数 | 说明 |
-|------|------|
-| `--book "书名"` | 指定书名（模糊匹配，自动选择） |
-| `--count N` | 发布章节数量 |
-| `--draft` | 存草稿模式（不直接发布） |
-| `--short` | 短故事模式（合并所有章节为一个文档） |
-| `--no-close` | 不关闭浏览器（便于调试） |
+- 未经用户明确授权，不执行直接发布；默认只做草稿。
+- 登录态和 cookies 只存工作区，不提交、不写插件目录。
+- 发布前必须通过 `write_pipeline.py post` 并存在 accepted commit；未审计章节不得同步。

@@ -13,6 +13,14 @@ description: 写章、续写、短篇创作和正文润色。用户说“写第N
 
 ## 强制流程
 
+0. 检查工作区确认状态：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+```
+
+`dangerous=plugin_root|root` 时停止；`confirmed=false` 且 `legacy_books=0` 时先让用户确认产物目录，再继续。
+
 1. 读本章细纲 + 上一章正文 + 工作区记忆包。
 2. 运行 `write_pipeline.py pre` 生成知识包、记忆包、9 问和章节骨架。若 `rule_stack.write_ready=false`，先补齐真相文件 `open_questions`，不得进入下一步。
 3. 调用子代理 `novel-creator-pro:context-agent`，生成五段写作任务书，写入 `摘要/chapter_NNN_taskbook.md`。人物段只能使用 `rule_stack.truth_layers.reader_known` 和 `character_knowledge`；未揭示事实只能作为作者计划。任务书缺失或返回 blocker 时，先补齐细纲/设定，不得直接起草。

@@ -22,6 +22,7 @@ from novel_creation_promax.core.dashboard import write_dashboards  # noqa: E402
 from novel_creation_promax.core.jsonio import load_json, now_iso, save_json  # noqa: E402
 from novel_creation_promax.core.paths import rel  # noqa: E402
 from novel_creation_promax.core.roots import workspace_root  # noqa: E402
+from novel_creation_promax.core import workspace_confirmation as wc  # noqa: E402
 from novel_creation_promax.core.workflow_state import (  # noqa: E402
     STAGE_LABELS,
     WORKFLOW_STAGES,
@@ -79,6 +80,18 @@ def _refresh_dashboards(workspace: Path, novel_dir: Path | None = None) -> None:
         write_dashboards(workspace, novel_dir)
     except (OSError, ValueError):
         pass
+
+
+def _ensure_workspace(workspace: Path, *, confirm: bool = False) -> bool:
+    """Refuse the first write until the output location is confirmed."""
+    try:
+        payload = wc.confirm(workspace, by="cli") if confirm else wc.require_confirmed(workspace)
+    except wc.WorkspaceConfirmationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return False
+    if payload.get("auto_confirmed"):
+        print("[OK] 已为存量工作区补写确认标记")
+    return True
 
 
 def _selected(workspace: Path, novel_dir_arg: str) -> tuple[Path | None, dict[str, Any], bool]:
@@ -246,6 +259,8 @@ def _render_status(state: dict[str, Any], missing: list[str]) -> str:
 
 
 def _cmd_start(workspace: Path, args: argparse.Namespace) -> int:
+    if not _ensure_workspace(workspace, confirm=getattr(args, "confirm_workspace", False)):
+        return 2
     if args.novel_dir:
         novel_dir = _resolve(workspace, args.novel_dir).resolve()
         state = load_workflow(novel_dir, workspace=workspace)
@@ -493,6 +508,11 @@ def main() -> int:
     start.add_argument("--platform", required=True)
     start.add_argument("--genre", default="")
     start.add_argument("--novel-dir", default="", help="按书启动独立工作流")
+    start.add_argument(
+        "--confirm-workspace",
+        action="store_true",
+        help="调用方已获得用户确认，允许在当前工作区写入并记录标记",
+    )
 
     status = sub.add_parser("status", help="查看当前阶段与下一步")
     status.add_argument("--json", action="store_true")

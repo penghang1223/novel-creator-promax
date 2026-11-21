@@ -5,6 +5,14 @@ argument-hint: "[平台] [题材] [数量]"
 
 读取并执行 `${CLAUDE_PLUGIN_ROOT}/skills/novel-idea/SKILL.md`。
 
+## 写入前先确认工作区
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+```
+
+`dangerous=plugin_root|root` 时停止；`confirmed=false` 且 `legacy_books=0` 时，展示绝对路径与 `write_paths`，等用户确认后再运行 `workspace.py confirm`。
+
 要求：
 
 - 默认生成 5 个，最多 10 个。

@@ -26,9 +26,10 @@ description: 平台格式转换与发布前检查。用户说“番茄格式”�
 python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/writing_gate.py" \
   --chapter "{章节文件}" --novel-dir "{小说目录}"
 
-# 番茄发布器（仅草稿；外部发布需授权）
-cd "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish"
-python3 publish.py --book "{书名}" --count N --draft
+# 番茄发布器（桥接外部引擎；仅草稿，外部发布需授权）
+python3 "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish/publish.py" --check
+python3 "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish/publish.py" \
+  --book "{书名}" --count N --draft
 ```
 
 其他平台发布器：`qidian_auto_publish`、`zhihu_auto_publish`、`qimao_auto_publish`。

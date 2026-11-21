@@ -36,11 +36,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/write_pipeline.py" 
 | 项目阶段、下一步、阶段门禁 | `MODE_REGISTRY.md` 模式 16 | workflow.json、阶段状态 | 替代章节门禁 |
 | 上线后数据、断流、切书、书测 | `novel-diagnose` + `${CLAUDE_PLUGIN_ROOT}/tools/data_diagnosis.py` | 诊断报告、七天动作 | 无数据就给处方、承诺收益 |
 | 新书立项、设定、大纲、分卷或细纲 | `${CLAUDE_PLUGIN_ROOT}/skills/novel-project-planning/SKILL.md` | 创意/设定/结构/细纲、bootstrap gate | 正文写作 |
-| 写章、续写、短篇、润色 | `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/orchestrator.md` Stage 5 + `write_pipeline.py` | 正文、摘要、passport、commit | 将步骤拆为更多 skill |
+| 写章、续写 | `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/orchestrator.md` Stage 5 + `write_pipeline.py` | 正文、摘要、passport、commit | 将步骤拆为更多 skill |
+| 改稿、润色、降AI、调节奏 | `MODE_REGISTRY.md` 模式 8 + `${CLAUDE_PLUGIN_ROOT}/skills/novel-revision/SKILL.md` | 修订稿、revision_history、重跑审计 | 无备份覆盖、伪造审计 |
+| 短篇、短故事、知乎盐选 | `MODE_REGISTRY.md` 模式 10 + `${CLAUDE_PLUGIN_ROOT}/skills/novel-short-story/SKILL.md` | 短篇正文、outline、写前检查、整篇审稿 | 伪造 seal、套长篇字数阈值 |
+| 续写他人作品、拆文后续写 | `MODE_REGISTRY.md` 模式 13 + `${CLAUDE_PLUGIN_ROOT}/skills/novel-continuation/SKILL.md` | 拆文结果、续写项目、导入报告 | 未审查就解锁正文 |
 | 记忆初始化、唤醒、回填、阶段体检 | `${CLAUDE_PLUGIN_ROOT}/skills/novel-memory/SKILL.md` | 记忆包、记忆 JSON、review pack | 正文改写 |
 | 单章精审、批量快审 | `${CLAUDE_PLUGIN_ROOT}/skills/novel-review/SKILL.md` + `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/review-result-schema.md` | 审稿 JSON、人读报告 | 绕过硬审计或直接改稿 |
 | 格式转换、同步草稿、平台发布 | `${CLAUDE_PLUGIN_ROOT}/skills/novel-publish/SKILL.md` | 平台稿、同步/发布状态 | 未经授权的外部发布 |
 | 学习文章、案例、教程或外部链接 | `${CLAUDE_PLUGIN_ROOT}/skills/novel-knowledge-ingestion/SKILL.md` | 原始素材、知识卡片、索引更新 | 项目正文或设定修改 |
+| 动漫分镜、画面脚本、Sora/即梦提示词 | `MODE_REGISTRY.md` 模式 18 + `${CLAUDE_PLUGIN_ROOT}/skills/anime-storyboard/SKILL.md` | 角色/场景提示词、Sora JSON、分镜表 | 改写正文、补设定 |
+| 短剧/漫剧改编、分集大纲 | `MODE_REGISTRY.md` 模式 19 + `${CLAUDE_PLUGIN_ROOT}/skills/short-drama-adaptation/SKILL.md` | 10维评估、分集大纲、钩子表 | 承诺收益、改正文 |
 | 题材分析、风格建议、角色问题 | `MODE_REGISTRY.md` 指定的知识库入口 | 咨询或约束清单 | 新建项目状态 |
 
 ## 全局契约

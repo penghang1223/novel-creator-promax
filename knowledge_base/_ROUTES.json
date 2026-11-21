@@ -97,7 +97,8 @@
       "name": "短篇模式",
       "trigger": "短篇/知乎盐选/短故事模式",
       "files": [
-        "knowledge_base/40_Writing/07_短篇与模板/短篇创作模板.md"
+        "knowledge_base/40_Writing/07_短篇与模板/短篇创作模板.md",
+        "novel_creation_promax/references/short-story-workflow.md"
       ]
     },
     {
@@ -205,6 +206,35 @@
       "title_keywords": [
         "插章",
         "重编号"
+      ]
+    },
+    {
+      "key": "storyboard",
+      "name": "动漫分镜与视觉提示词",
+      "trigger": "分镜、画面脚本、Sora 提示词、即梦分镜",
+      "files": [
+        "knowledge_base/动漫分镜生成.md"
+      ],
+      "title_keywords": [
+        "分镜",
+        "画面",
+        "Sora",
+        "即梦"
+      ]
+    },
+    {
+      "key": "short_drama",
+      "name": "短剧改编",
+      "trigger": "短剧改编、分集大纲、能不能改编、漫剧改编",
+      "files": [
+        "knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md",
+        "knowledge_base/40_Writing/07_短篇与模板/短剧改编指南.md",
+        "novel_creation_promax/references/docs/short-drama-adaptation.md"
+      ],
+      "title_keywords": [
+        "短剧",
+        "改编",
+        "分集"
       ]
     }
   ],

@@ -351,7 +351,287 @@ def scaffold_truth_files(novel_dir: Path, *, title: str = "", force: bool = Fals
     return written
 
 
-def validate_truth_files(novel_dir: Path) -> dict[str, Any]:
+def _continuation_mode(novel_dir: Path) -> bool:
+    state = load_json(novel_dir / "novel_state.json", {})
+    return isinstance(state, dict) and state.get("import_mode") == "continuation"
+
+
+def _entity_name(item: Any) -> str:
+    if isinstance(item, str):
+        return item.strip()
+    if isinstance(item, dict):
+        return str(item.get("name") or item.get("title") or "").strip()
+    return ""
+
+
+def _source_count(item: Any) -> int:
+    if isinstance(item, dict):
+        try:
+            return int(item.get("count", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+def _plausible_entity(name: str) -> bool:
+    if not (1 < len(name) <= 12):
+        return False
+    noise = (
+        "推开", "说", "走", "看", "笑", "站", "坐", "拿", "指", "问",
+        "回答", "压低", "来到", "抬起头", "转身", "点头",
+    )
+    return not any(token in name for token in noise)
+
+
+def _keep_entity(item: Any) -> bool:
+    name = _entity_name(item)
+    if not _plausible_entity(name):
+        return False
+    count = _source_count(item)
+    return count == 0 or count >= 2
+
+
+def import_deconstruction(
+    novel_dir: Path,
+    source_dir: Path,
+    *,
+    apply: bool = False,
+) -> dict[str, Any]:
+    """把拆文结果转成真相文件记录。
+
+    所有记录都标记为 ``source=deconstruction_import``，含义是“从用户提供的
+    原文推断”，不是作者确认的事实。导入后仍需用户审查 gate 报告。
+    """
+    source_dir = Path(source_dir)
+    characters_payload = load_json(source_dir / "characters.json", {})
+    world_payload = load_json(source_dir / "world_settings.json", {})
+    plot_payload = load_json(source_dir / "plot_structure.json", {})
+
+    if not isinstance(characters_payload, dict):
+        characters_payload = {}
+    if not isinstance(world_payload, dict):
+        world_payload = {}
+    if not isinstance(plot_payload, dict):
+        plot_payload = {}
+
+    chapters = [item for item in plot_payload.get("chapters", []) if isinstance(item, dict)]
+    last_chapter = max((int(item.get("chapter_num", 0) or 0) for item in chapters), default=0)
+
+    raw_characters = [
+        item for item in characters_payload.get("characters", []) if isinstance(item, dict)
+    ]
+    names: list[str] = []
+    for item in raw_characters:
+        name = _entity_name(item)
+        if name and name not in names and "默" not in name:
+            names.append(name)
+    if not names:
+        raise ValueError("拆文结果没有可用角色，无法建立续写真相文件")
+
+    name_to_id = {name: f"char_{index:03d}" for index, name in enumerate(names, 1)}
+
+    character_records = []
+    for name in names:
+        character_records.append(
+            {
+                "id": name_to_id[name],
+                "name": name,
+                "role": "续写导入角色（拆文推断）",
+                "age": "原文未说明",
+                "occupation": "原文未说明",
+                "income_range": "原文未说明",
+                "residence": "原文未说明",
+                "education_or_skill": "原文未说明",
+                "reality_anchor": {
+                    "income_housing_logic": "原文未说明；续写前需按原文补全",
+                    "job_logic": "原文未说明；续写前需按原文补全",
+                    "daily_schedule": "原文未说明",
+                    "resources": [],
+                    "constraints": ["不得凭空新增身份、收入或能力"],
+                },
+                "motivation": {
+                    "external_goal": "原文未说明；从后续章节提取",
+                    "inner_desire": "原文未说明",
+                    "core_fear": "原文未说明",
+                    "bottom_line": "原文未说明",
+                },
+                "speech_style": {
+                    "tone": "按原文对话样本校准",
+                    "sentence_pattern": "按原文对话样本校准",
+                    "professional_words": [],
+                    "forbidden_lines": ["与原文身份或语气冲突的表达"],
+                },
+                "behavior_rules": {
+                    "will_do": ["按原文已发生行为推断"],
+                    "will_not_do": ["无原文依据的行为"],
+                    "stress_response": "原文未说明",
+                    "decision_logic": "按原文已发生选择推断",
+                },
+                "current_state": {
+                    "chapter": last_chapter,
+                    "location": "原文未说明",
+                    "emotion": "原文未说明",
+                    "assets": [],
+                },
+                "knowledge_boundary": [],
+                "secrets": [],
+                "power_ladder": [],
+            }
+        )
+
+    locations = []
+    for index, item in enumerate(
+        [entry for entry in world_payload.get("locations", []) if _keep_entity(entry)][:20], 1
+    ):
+        locations.append(
+            {
+                "id": f"loc_{index:03d}",
+                "name": _entity_name(item),
+                "type": "原文未说明",
+                "city_or_region": "原文未说明",
+                "cost_level": "原文未说明",
+                "access_rules": "原文未说明",
+                "real_world_rules": "原文未说明",
+                "scene_uses": [],
+            }
+        )
+
+    factions = []
+    for index, item in enumerate(
+        [entry for entry in world_payload.get("factions", []) if _keep_entity(entry)][:20], 1
+    ):
+        factions.append(
+            {
+                "id": f"fac_{index:03d}",
+                "name": _entity_name(item),
+                "type": "原文未说明",
+                "leader": "原文未说明",
+                "resources": ["原文未说明"],
+                "limits": ["原文未说明"],
+                "interests": "原文未说明",
+                "action_boundary": "原文未说明",
+            }
+        )
+
+    affected = list(name_to_id.values())[:2] or ["原文"]
+    events = []
+    turning_points = [
+        item for item in plot_payload.get("turning_points", []) if isinstance(item, dict)
+    ]
+    if turning_points:
+        for index, item in enumerate(turning_points[:10], 1):
+            chapter = int(item.get("chapter_num", 0) or item.get("chapter", 0) or 0)
+            events.append(
+                {
+                    "id": f"evt_{index:03d}",
+                    "name": str(item.get("name") or item.get("title") or f"第{chapter}章转折点"),
+                    "status": "done",
+                    "chapter_range": str(chapter),
+                    "cause": "原文已发生的转折",
+                    "effect": "续写必须承接该转折的后果",
+                    "evidence_chain": ["用户提供的原文"],
+                    "affected_entities": affected,
+                    "debts": [],
+                    "reader_known": True,
+                    "reveal_status": "已揭示",
+                    "reveal_chapter": chapter,
+                }
+            )
+    else:
+        for index, item in enumerate(chapters[-5:], 1):
+            chapter = int(item.get("chapter_num", 0) or 0)
+            title = str(item.get("title") or f"第{chapter}章")
+            events.append(
+                {
+                    "id": f"evt_{index:03d}",
+                    "name": title,
+                    "status": "done",
+                    "chapter_range": str(chapter),
+                    "cause": "原文已发生的章节事件",
+                    "effect": "续写必须承接该章结尾状态",
+                    "evidence_chain": ["用户提供的原文"],
+                    "affected_entities": affected,
+                    "debts": [],
+                    "reader_known": True,
+                    "reveal_status": "已揭示",
+                    "reveal_chapter": chapter,
+                }
+            )
+
+    relationships = []
+    for index, item in enumerate(
+        [entry for entry in characters_payload.get("relationships", []) if isinstance(entry, dict)], 1
+    ):
+        pair = item.get("characters")
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        source, target = pair[0], pair[1]
+        if source not in name_to_id or target not in name_to_id:
+            continue
+        relationships.append(
+            {
+                "id": f"rel_{index:03d}",
+                "source": name_to_id[source],
+                "target": name_to_id[target],
+                "type": "原文未说明",
+                "trust_level": 0,
+                "conflict": "原文未说明",
+                "information_gap": "原文未说明",
+                "change_rules": "按后续情节更新",
+            }
+        )
+
+    payloads = {
+        "characters.json": ("characters", character_records),
+        "locations.json": ("locations", locations),
+        "factions.json": ("factions", factions),
+        "events.json": ("events", events),
+        "relationships.json": ("relationships", relationships),
+        "resources.json": ("resources", []),
+        "foreshadowing.json": ("foreshadowing", []),
+    }
+
+    for file_name, (kind, records) in payloads.items():
+        path = truth_dir(novel_dir) / file_name
+        existing = load_json(path, {})
+        payload = existing if isinstance(existing, dict) else {}
+        payload.update(
+            {
+                "schema_version": "1.0",
+                "kind": kind,
+                "source": "deconstruction_import",
+                "updated_at": now_iso(),
+                "records": records,
+            }
+        )
+        payload.setdefault("chapter_facts", [])
+        payload.setdefault("pending_updates", [])
+        payload.setdefault("open_questions", [])
+        if apply:
+            save_json(path, payload)
+
+    return {
+        "source_dir": str(source_dir),
+        "chapters": len(chapters),
+        "last_chapter": last_chapter,
+        "characters": len(character_records),
+        "locations": len(locations),
+        "factions": len(factions),
+        "events": len(events),
+        "relationships": len(relationships),
+        "resources": 0,
+        "foreshadowing": 0,
+        "applied": apply,
+    }
+
+
+def validate_truth_files(
+    novel_dir: Path,
+    *,
+    continuation: bool | None = None,
+) -> dict[str, Any]:
+    if continuation is None:
+        continuation = _continuation_mode(novel_dir)
     target_dir = truth_dir(novel_dir)
     results: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
@@ -378,7 +658,7 @@ def validate_truth_files(novel_dir: Path) -> dict[str, Any]:
                 failures.append("records 必须是数组")
                 records = []
             item["records"] = len(records)
-            if len(records) < int(rule["min_records"]):
+            if not continuation and len(records) < int(rule["min_records"]):
                 failures.append(f"records 不足 {len(records)}<{rule['min_records']}")
             if has_placeholder(payload):
                 failures.append("仍含占位词")
@@ -410,6 +690,7 @@ def validate_truth_files(novel_dir: Path) -> dict[str, Any]:
     return {
         "generated_at": now_iso(),
         "truth_dir": rel(target_dir, novel_dir),
+        "mode": "continuation" if continuation else "standard",
         "status": "pass" if not failed else "fail",
         "passed": len(results) - len(failed),
         "failed": len(failed),
@@ -1555,6 +1836,12 @@ def main() -> int:
     p = sub.add_parser("validate", help="校验真相文件")
     p.add_argument("--novel-dir", required=True)
     p.add_argument("--output", default="")
+    p.add_argument("--continuation", action="store_true", help="续写导入模式：允许某些类别记录为空")
+
+    p = sub.add_parser("import-deconstruction", help="把拆文结果导入真相文件")
+    p.add_argument("--novel-dir", required=True)
+    p.add_argument("--input", required=True, help="deconstruct_novel.py 的输出目录")
+    p.add_argument("--apply", action="store_true", help="实际写入；不加时只做 dry-run")
 
     p = sub.add_parser("compile", help="编译章节 rule_stack 和 truth brief")
     p.add_argument("--novel-dir", required=True)
@@ -1609,7 +1896,7 @@ def main() -> int:
         return 0
 
     if args.command == "validate":
-        report = validate_truth_files(novel_dir)
+        report = validate_truth_files(novel_dir, continuation=args.continuation or None)
         if args.output:
             save_json(resolve_path(args.output), report)
         print(f"[{report['status'].upper()}] 真相文件校验: {report['passed']} pass / {report['failed']} fail")
@@ -1617,6 +1904,16 @@ def main() -> int:
             marker = "[OK]" if item["status"] == "pass" else "[FAIL]"
             print(f"{marker} {item['file']} - {item['detail']}")
         return 0 if report["status"] == "pass" else 1
+
+    if args.command == "import-deconstruction":
+        try:
+            summary = import_deconstruction(novel_dir, resolve_path(args.input), apply=args.apply)
+        except (OSError, ValueError) as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 1
+        mode = "已写入" if args.apply else "dry-run（加 --apply 写入）"
+        print(f"[OK] 拆文导入 {mode}: {json.dumps(summary, ensure_ascii=False)}")
+        return 0
 
     if args.command == "compile":
         report = validate_truth_files(novel_dir)

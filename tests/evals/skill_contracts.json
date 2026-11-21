@@ -201,6 +201,45 @@
         "review_result.py",
         "blocking_count > 0"
       ]
+    },
+    {
+      "id": "short-story-workflow-contract",
+      "type": "text_contract",
+      "path": "novel_creation_promax/references/short-story-workflow.md",
+      "required": [
+        "明确任务",
+        "调研先行",
+        "短篇写前检查",
+        "先锁结局/谜底",
+        "整篇审稿",
+        "不得为了调用流水线伪造",
+        "2800–3200"
+      ]
+    },
+    {
+      "id": "revision-backup-audit-contract",
+      "type": "text_contract",
+      "path": "skills/novel-revision/SKILL.md",
+      "required": [
+        "先保存原稿",
+        "revision_queue.py",
+        "write_pipeline.py post",
+        "revision_history",
+        "重新走审计链",
+        "不自动发布"
+      ]
+    },
+    {
+      "id": "continuation-two-modes-contract",
+      "type": "text_contract",
+      "path": "skills/novel-continuation/SKILL.md",
+      "required": [
+        "模式 A：项目续写",
+        "模式 B：片段续写",
+        "续写交接",
+        "接缝检查",
+        "不伪造 seal"
+      ]
     }
   ]
 }

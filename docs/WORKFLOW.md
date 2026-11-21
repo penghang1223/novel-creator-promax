@@ -24,6 +24,39 @@ research ──→ idea ──→ init ──→ write ──→ publish
 > 长期沉淀写入 `${CLAUDE_PROJECT_DIR}/创意库/`（`创意卡/`、`调研/`、`_INDEX.md`），由 `tools/idea_library.py` 维护。
 > 插件知识库只读，写入会在插件更新时丢失。
 
+## 续写他人作品
+
+续写外部文本不走 `research → idea → init` 的原创路径，使用专用导入流程：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/continuation_import.py" \
+  --input "{原文文件或目录}" --title "{书名}" --platform "{平台}" --genre "{题材}" \
+  --confirm-workspace
+
+python3 "${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/scripts/project_bootstrap_pipeline.py" \
+  continuation-gate --novel-dir "${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}" --approve
+```
+
+- 第一步只建立项目、导入真相文件和生成报告，**不解锁正文**。
+- 用户审查 `素材/continuation_import_report.md` 并补齐 `细纲/续写细纲.md` 后，第二步才写入续写门禁。
+- 门禁记录 `bootstrap_status=continuation_import`，与长篇 `seal` 区分；不得声称立项清单通过。
+- 章节号从原文最后一章 + 1 开始，首章仍走 `write_pipeline.py pre`。
+
+## 工作区确认
+
+外层工作流启动前必须先确认产物目录。确认标记写在工作区根 `.novel-workspace.json`：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" confirm
+```
+
+- `dangerous=plugin_root|root`：永久拒绝，必须先换到独立写作目录。
+- `confirmed=false` 且 `legacy_books=0`：Claude 必须展示绝对路径和 `write_paths`，等用户确认后再写标记。
+- `confirmed=false` 且 `legacy_books>0`：存量工作区，首次写入自动补标记。
+- 标记中的绝对路径与当前工作区不一致（目录被移动）时，重新进入确认流程。
+- `start` 和 `project_bootstrap_pipeline.py init` 在未确认时拒绝写入；确认后可传 `--confirm-workspace`。
+
 ## 状态文件
 
 每本书独立：

@@ -17,14 +17,16 @@ description: 平台格式转换、待发章节同步、草稿上传和明确授�
 
 ## 发布器位置
 
-发布器随插件分发，执行时使用绝对路径，不要依赖当前目录：
+发布器入口随插件分发，执行时使用绝对路径，不要依赖当前目录：
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish"
-python3 publish.py --book "书名" --count N --draft
+python3 "${CLAUDE_PLUGIN_ROOT}/auto_publish/fanqie_auto_publish/publish.py" \
+  --book "书名" --count N --draft
 ```
 
-章节稿从 `${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}/正文/` 读取或同步。
+番茄入口是**桥接层**：它从 `NOVEL_FANQIE_PUBLISHER` 或 `~/fanqie_auto_publish` 解析外部 Playwright 引擎，并以工作区 `${CLAUDE_PROJECT_DIR}/.novel_publish/fanqie/` 为运行目录。登录态、章节草稿和归档都留在工作区，不写插件目录。
+
+章节稿从 `${CLAUDE_PROJECT_DIR}/novel_output/{平台}/{书名}/正文/` 读取，经 `scripts/sync_to_fanqie.py` 同步到 `${CLAUDE_PROJECT_DIR}/.novel_publish/fanqie/chapters/`。
 
 ## 发布前格式检查
 
@@ -34,7 +36,7 @@ python3 publish.py --book "书名" --count N --draft
 
 1. 读取 `knowledge_base/60_Platform/` 的目标平台规则，并确认书名、章节范围、目标操作；信息不足时只做只读预检。
 2. 对待发章节检查 passport 的审计与 commit；缺失、阻塞或正文已在提交后改动时，回到 `write_pipeline.py post`，不得同步或发布。
-3. 番茄目录为 `auto_publish/fanqie_auto_publish/`；该目录缺少 `publish.py` 时只做本地格式转换，不调用浏览器发布。同步后核验 passport `publish.status` 和 `novel_state.json.publish_state`。
+3. 番茄入口为 `auto_publish/fanqie_auto_publish/publish.py`（桥接外部引擎）。先运行 `publish.py --check` 确认引擎和 Playwright；引擎缺失或登录态未建立时只做本地格式转换，不调用浏览器发布。同步后核验 passport `publish.status` 和 `novel_state.json.publish_state`。
 4. 对起点、知乎盐选、七猫，先将平台稿置入各发布器的章节目录，再从对应 `auto_publish/*_auto_publish/` 目录执行 `publish.py --book "{书名}" --count N --draft`。只有用户明确要求直接发布时才去掉 `--draft`。
 5. 发布后用平台后台或脚本输出核验结果，并将失败章节保留为待发，不得标记为成功。
 

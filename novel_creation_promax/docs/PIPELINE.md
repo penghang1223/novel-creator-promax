@@ -43,6 +43,22 @@ python novel_creation_promax/scripts/project_bootstrap_pipeline.py seal --novel-
 
 `seal` 同时检查 `设定/真相文件/` 下 7 个结构化事实源：`characters.json`、`locations.json`、`factions.json`、`events.json`、`relationships.json`、`resources.json`、`foreshadowing.json`。这些文件不是可选资料；它们会被 `write_pipeline.py pre` 编译成每章 `rule_stack`。
 
+## 续写他人作品
+
+外部文本续写使用独立入口，不伪造长篇 `seal`：
+
+```bash
+python novel_creation_promax/scripts/continuation_import.py \
+  --input "{原文}" --title "{书名}" --platform "{平台}" --genre "{题材}" --confirm-workspace
+python novel_creation_promax/scripts/project_bootstrap_pipeline.py \
+  continuation-gate --novel-dir "novel_output/{平台}/{书名}" --approve
+```
+
+- `continuation_import.py` 拆文、建项目、导入真相文件，但保持 `can_write_chapter=false`。
+- `continuation-gate --approve` 在用户审查报告后写入 `素材/continuation_import_gate.json`，设置 `bootstrap_status=continuation_import` 与 `can_write_chapter=true`。
+- 真相文件校验在 `import_mode=continuation` 下允许部分类别为空，但已有记录仍必须无占位词、字段完整。
+- 章节号衔接原文最后一章，首章仍必须 `pre → post`。
+
 ## 每章强制流程
 
 1. 校验真相文件，并生成章节记忆包。

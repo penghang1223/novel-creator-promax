@@ -26,6 +26,8 @@
 | 人物设定/世界观构建 | `knowledge_base/20_Characters/人物设定技巧.md` + `10_WorldBuilding/` |
 | 结构设计/节奏把控 | `knowledge_base/30_Plot/结构与节奏.md` + `40_Writing/02_节奏与结构/` |
 | 亲密场景/感情线 | `knowledge_base/40_Writing/04_场景与描写/亲密场景写作指南.md` |
+| 动漫分镜/视觉提示词 | `knowledge_base/动漫分镜生成.md` |
+| 短剧改编/分集大纲 | `knowledge_base/40_Writing/07_短篇与模板/短剧改编10维.md` + `短剧改编指南.md` |
 | 对话场景/潜台词/张力 | `knowledge_base/40_Writing/04_场景与描写/潜台词与张力技法.md` |
 | 修仙/修炼体系 | `knowledge_base/10_WorldBuilding/题材知识库/修仙体系构建指南.md` |
 | 推理/探案流程 | `knowledge_base/10_WorldBuilding/题材知识库/推理破案流程指南.md` |

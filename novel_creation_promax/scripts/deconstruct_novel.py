@@ -798,6 +798,13 @@ def deconstruct(
 
     # 加载文本
     chapters = load_text_files(input_path)
+    if len(chapters) == 1 and chapters[0].get("path"):
+        # 单文件里常含多个「第N章」标题；先尝试拆章，再决定是否按单章处理。
+        raw = Path(chapters[0]["path"]).read_text(encoding="utf-8", errors="replace")
+        split = split_chapters_from_text(raw)
+        if len(split) > 1:
+            chapters = split
+
     if not chapters:
         # 尝试按章节拆分
         p = Path(input_path)

@@ -21,6 +21,20 @@ description: 新书立项、世界观与人物设定、长篇大纲、分卷和�
 
 两者只产出各自领域的结果，立项与 seal 门禁仍以本技能为准。
 
+## 工作区确认
+
+`init` 会创建 `novel_output/`、`素材/`、`创意/`、工作区共享记忆 MEMORY.md、`.claude/memory/`、`knowledge_base/80_Projects/`。写入前必须确认位置：
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/tools/workspace.py" --workspace "${CLAUDE_PROJECT_DIR}" status --json
+```
+
+- `dangerous` 为 `plugin_root` 或 `root`：停止，不得写。
+- `confirmed=true`：继续。
+- `confirmed=false` 且 `legacy_books>0`：`workspace.py confirm --legacy` 后继续。
+- `confirmed=false` 且 `legacy_books=0`：向用户展示绝对路径和 `write_paths`，等用户确认后再 `workspace.py confirm`；用户要求换目录时停止。
+- 只有用户确认后，才能给 `init` 加 `--confirm-workspace`。
+
 ## 执行
 
 1. 读取 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/MODE_REGISTRY.md` 和 `${CLAUDE_PLUGIN_ROOT}/novel_creation_promax/references/orchestrator.md` 的 Stage 1–4；阶段顺序和用户确认规则只以编排器为准。

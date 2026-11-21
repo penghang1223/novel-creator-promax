@@ -183,6 +183,80 @@ python scripts/sync_to_fanqie.py --list             # list syncable novels
 
 ---
 
+## 续写他人作品
+
+两种模式，先判断用户要哪一种：
+
+### 模式 A：项目续写
+
+```bash
+# 1. 拆文并建立可续写项目（不会直接解锁正文）
+python3 novel_creation_promax/scripts/continuation_import.py \
+  --input "原文.txt或章节目录/" --title "书名" --platform 番茄 --genre 悬疑 \
+  --confirm-workspace
+
+# 2. 审查 素材/continuation_import_report.md，补齐 细纲/续写细纲.md
+# 3. 用户确认后解锁正文
+python3 novel_creation_promax/scripts/project_bootstrap_pipeline.py continuation-gate \
+  --novel-dir "novel_output/番茄/书名" --approve
+
+# 4. 从原文最后一章 + 1 开始写
+python3 novel_creation_promax/scripts/write_pipeline.py pre \
+  --novel-dir "novel_output/番茄/书名" --chapter N --title "第N章 标题"
+```
+
+### 模式 B：片段续写（不建项目）
+
+```bash
+/novel-creator-pro:continue "原文片段.txt" 目标长度
+```
+
+按 `skills/novel-continuation/SKILL.md` 的模式 B 执行：写 `素材/续写交接.md`，提取叙事特征，形成场景卡，两遍写作，做接缝检查。不建项目、不伪造 seal、不覆盖原文。
+
+`continuation-gate` 是独立门禁：写入 `bootstrap_status=continuation_import`，不冒充长篇 `seal`。拆文记录一律标记为 `source=deconstruction_import`，表示从原文推断。
+
+---
+
+## 改稿与润色
+
+```bash
+/novel-creator-pro:polish "书名" 第12章 "对话更紧，降低AI味"
+```
+
+规则见 `skills/novel-revision/SKILL.md`：
+
+- 先判断授权范围：词句 / 场景 / 结构；未授权结构修改时保留情节、结局和人物动机。
+- 先备份：有章节编号用 `tools/revision_queue.py snapshot/propose/review`；独立短篇在 `素材/备份/` 保存带时间和内容指纹的副本。
+- 修改后旧 commit 失效，必须重跑 `write_pipeline.py post`；不得手动标记通过。
+- 修订记录写入 `novel_state.json.revision_history`；剧情事实变化回填 truth delta 与记忆。
+
+---
+
+## 短篇创作
+
+```bash
+# 短篇/短故事/知乎盐选：调研 → 策划 → 写前检查 → 两遍写作 → 整篇审稿
+/novel-creator-pro:short-story 番茄 悬疑 12000
+```
+
+工作流细则见 `novel_creation_promax/references/short-story-workflow.md`。独立短篇使用人工写前检查与整篇审稿，不伪造 `seal`，不套用长篇单章 2800-3200 字数阈值；已合法 `seal` 的项目仍走原章节门禁。
+
+---
+
+## 动漫分镜与短剧改编
+
+```bash
+# 章节 → 角色/场景提示词、Sora JSON、分镜表
+/novel-creator-pro:storyboard "书名" 第12章 国漫
+
+# 改编潜力 10 维评估 → 分集大纲、钩子表、风险清单
+/novel-creator-pro:short-drama "书名" 全本 竖屏短剧
+```
+
+产物分别写入工作区 `素材/分镜/{书名}/` 和 `素材/短剧/{书名}/`，不改正文。
+
+---
+
 ## Writing pipeline
 
 一键串起写前检查 → 写作任务书 → Pass 1/2 → 结构化审稿 → 写后审计 → 记忆同步：
@@ -243,6 +317,25 @@ python novel_creation_promax/scripts/write_pipeline.py act-summary --novel-dir "
 **阶段治理审计**：`post` 阶段审计通过后，每 20 章自动触发全量趋势分析（通过率/AI词趋势/对话比例/字数变化），生成 `素材/governance_chNNN.json` + `.md`，含滑坡预警。
 
 **章节骨架**：`pre` 阶段自动生成 `素材/skeleton_chNNN.md`，包含细纲要点、上一章回顾、活跃角色、开篇锚点/核心冲突/结尾目标清单、记忆更新清单、写中自检清单。
+
+---
+
+## 工作区确认
+
+首次在某个目录写入前，先确认产物存放位置。确认标记写在工作区根 `.novel-workspace.json`，不跨目录共享。
+
+```bash
+python3 tools/workspace.py --workspace "$CLAUDE_PROJECT_DIR" status
+python3 tools/workspace.py --workspace "$CLAUDE_PROJECT_DIR" status --json
+python3 tools/workspace.py --workspace "$CLAUDE_PROJECT_DIR" confirm
+python3 tools/workspace.py --workspace "$CLAUDE_PROJECT_DIR" confirm --legacy
+python3 tools/workspace.py --workspace "$CLAUDE_PROJECT_DIR" forget
+```
+
+- `plugin_root` 和 `/` 永久拒绝写入；家目录允许确认但会警告。
+- 已有 `novel_output/*/*/novel_state.json` 的存量工作区，首次写入时自动补标记。
+- `workflow.py start`、`project_bootstrap_pipeline.py init/check/seal`、`write_pipeline.py` 在未确认时拒绝写入；用户确认后可给 `start` / `init` 传 `--confirm-workspace`。
+- `status`、`dashboard.py`、`verify_project_integrity.py` 只读，不触发确认。
 
 ---
 
