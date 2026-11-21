@@ -131,6 +131,16 @@ class ContinuationImportTest(unittest.TestCase):
                 self.assertTrue((book / relative).is_file(), relative)
             self.assertFalse(list((book / "细纲").glob("卷*.md")))
 
+            charter = (book / "项目章程.md").read_text(encoding="utf-8")
+            self.assertIn("续写导入", charter)
+            self.assertIn("续写起点：第 4 章", charter)
+            self.assertNotIn("待填写", charter)
+
+            risk = (book / "风险登记表.md").read_text(encoding="utf-8")
+            self.assertIn("R-01", risk)
+            self.assertIn("复核节奏", risk)
+            self.assertNotIn("待填写", risk)
+
             truth = run(
                 [sys.executable, str(TRUTH), "validate", "--novel-dir", str(book), "--continuation"],
                 workspace,

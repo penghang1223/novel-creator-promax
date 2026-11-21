@@ -205,6 +205,101 @@ def render_constraints(style: dict[str, Any]) -> str:
     )
 
 
+def render_continuation_charter(
+    title: str,
+    source: Path,
+    summary: dict[str, Any],
+    characters: dict[str, Any],
+) -> str:
+    items = [item for item in characters.get("characters", []) if isinstance(item, dict)]
+    character_rows = "\n".join(
+        f"| {name_of(item)} | {safe_int(item.get('count'))} |" for item in items
+    ) or "| 原文未提取到 | 0 |"
+    last = safe_int(summary.get("last_chapter"))
+    return "\n".join(
+        [
+            f"# 项目章程 — {title}（续写导入）",
+            "",
+            "## 项目边界",
+            "",
+            f"- 原文来源：`{source}`",
+            f"- 原文最后已知章节：第 {last} 章",
+            f"- 续写起点：第 {last + 1} 章",
+            f"- 拆文统计：{summary['chapters']} 章 / {summary['characters']} 角色 / "
+            f"{summary['locations']} 地点 / {summary['factions']} 势力",
+            "- 目标规模与更新节奏：由用户确认",
+            "",
+            "## 创作红线",
+            "",
+            "- 不把拆文推断写成原作事实；原文事实、合理推断、拟新增设定必须分开记录。",
+            "- 不改写、不覆盖原文；续写内容不声称属于原作者。",
+            "- 章节号衔接原文最后一章，不从头重编号。",
+            "- 原文未说明的动机、能力、关系先问用户，不自行补成硬设定。",
+            "- 不伪造 seal、审计记录或 commit；模式 A 必须通过 continuation-gate。",
+            "- 角色名、专名、称呼以原文为准，不混入其他项目设定。",
+            "",
+            "## 角色总表",
+            "",
+            "| 角色 | 出现次数 |",
+            "|---|---:|",
+            character_rows,
+            "",
+            "> 身份、动机、能力边界与关系仍需回读原文补全；拆文统计只作索引。",
+            "",
+            "## 里程碑",
+            "",
+            "| 里程碑 | 验收 |",
+            "|---|---|",
+            "| 拆文导入 | 真相文件（续写模式）校验通过 |",
+            "| 用户审查 | 审查 continuation_import_report.md 并补齐续写细纲 |",
+            "| 续写门禁 | `continuation-gate --approve` 写入 gate |",
+            "| 首章 | `write_pipeline.py pre/post` 通过 |",
+            "",
+            "## 验收方式",
+            "",
+            "- 续写门禁：`bootstrap_status=continuation_import`，不冒充长篇 seal。",
+            "- 每章：`write_pipeline.py pre/post`、结构化审稿、commit。",
+            "- 交付前：`verify_project_integrity.py --strict`。",
+            "",
+        ]
+    )
+
+
+def render_continuation_risk_register(title: str, summary: dict[str, Any]) -> str:
+    last = safe_int(summary.get("last_chapter"))
+    marker = f"第 {last} 章（导入）"
+    return "\n".join(
+        [
+            f"# 风险登记表 — {title}（续写导入）",
+            "",
+            "> 写章前扫描“开放”和“监控”项；每 10 章或每卷末至少复核一次。",
+            f"> 最后复核：{marker}",
+            "",
+            "| 编号 | 风险 | 触发信号 | 影响 | 应对措施 | 责任阶段 | 复核节奏 | 最后复核 | 状态 |",
+            "|------|------|----------|------|----------|----------|----------|----------|------|",
+            f"| R-01 | 推断事实被当作原作事实 | 正文出现原文没有的设定或关系 | 高 | 回读原文，标为拟新增设定并让用户确认 | 写前 | 每章 | {marker} | 开放 |",
+            f"| R-02 | 角色动机/能力边界缺失 | 行为无法由原文解释 | 高 | 回读原文补人物档案；无依据则问用户 | 写前 | 每 10 章 | {marker} | 开放 |",
+            f"| R-03 | 风格漂移 | 句长、对话密度或叙事距离明显偏离 baseline | 中 | 对照 style_dna_baseline，先校准再改剧情 | 写后 | 每章 | {marker} | 监控 |",
+            f"| R-04 | 章节号/时间线错位 | 与原文最后一章冲突 | 高 | 以原文最后状态为准，续写细纲先写清 | 写前 | 每章 | {marker} | 开放 |",
+            f"| R-05 | 原文未说明设定被临时发明 | 正文出现无来源规则 | 高 | 标为拟新增，先问用户 | 写前 | 每章 | {marker} | 开放 |",
+            f"| R-06 | 授权/版权边界 | 用户无法证明有权续写 | 高 | 停止并确认授权；不复制原文入库 | 导入前 | 每次导入 | {marker} | 开放 |",
+            "",
+            "## 状态规范",
+            "",
+            "- **开放**：必须在下一次写作前处理或明确接受风险。",
+            "- **监控**：本轮允许存在，但复盘时必须重新评估。",
+            "- **已解决**：填写解决章节、凭证和验证日期。",
+            "",
+            "## 复核规范",
+            "",
+            "- 每 10 章或每卷末更新一次“最后复核”章节号。",
+            "- 状态变化写入 `knowledge_base/80_Projects/{项目}/变更记录.md`。",
+            "- 模式 B（片段续写）不建项目时，至少写进 `素材/续写交接.md` 的未知信息栏。",
+            "",
+        ]
+    )
+
+
 def render_structure(plot: dict[str, Any]) -> str:
     chapters = [item for item in plot.get("chapters", []) if isinstance(item, dict)]
     lines = [
@@ -514,6 +609,14 @@ def main() -> int:
         "relationships": len(relationships),
     }
 
+    write_text(
+        novel_dir / "项目章程.md",
+        render_continuation_charter(args.title, source, summary, characters),
+    )
+    write_text(
+        novel_dir / "风险登记表.md",
+        render_continuation_risk_register(args.title, summary),
+    )
     write_text(novel_dir / "设定" / "人物档案.md", render_characters(characters))
     write_text(novel_dir / "设定" / "地点档案.md", render_entities("地点档案（续写导入）", locations, "地点"))
     write_text(novel_dir / "设定" / "势力档案.md", render_entities("势力档案（续写导入）", factions, "势力"))
